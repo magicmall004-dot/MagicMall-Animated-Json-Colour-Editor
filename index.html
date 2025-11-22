@@ -1,0 +1,1060 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Magic Mall Lottie Editor</title>
+  <meta name="theme-color" content="#eaf3ff">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.9.6/lottie.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+  
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary: #0b84ff;
+      --primary-dark: #0060c0;
+      --bg-gradient: linear-gradient(135deg, #f0f6ff 0%, #ffffff 100%);
+      --surface: rgba(255, 255, 255, 0.65);
+      --surface-border: rgba(255, 255, 255, 0.4);
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+      --radius: 16px;
+      --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    .dark {
+      --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      --surface: rgba(30, 41, 59, 0.7);
+      --surface-border: rgba(255, 255, 255, 0.08);
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    
+    html, body {
+      height: 100%; margin: 0;
+      font-family: var(--font-family);
+      background: var(--bg-gradient);
+      color: var(--text);
+      font-size: 14px;
+      transition: background 0.3s;
+    }
+
+    body {
+      display: flex; flex-direction: column;
+      padding: 12px; gap: 12px;
+      max-width: 1400px; margin: 0 auto;
+    }
+    
+    /* --- NEW DRAG OVERLAY CSS --- */
+    #dropOverlay {
+      position: fixed; inset: 0; background: rgba(11, 132, 255, 0.9); z-index: 200;
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: white; 
+      font-size: 24px; font-weight: bold; pointer-events: none; opacity: 0; transition: opacity 0.3s;
+    }
+    .dragging #dropOverlay { display: flex; pointer-events: auto; opacity: 1; }
+    
+    /* --- NEW SETTINGS CSS --- */
+    .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .setting-row label { color: var(--text-muted); font-size: 13px; }
+    .setting-input { 
+      width: 80px; padding: 6px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); 
+      background: rgba(255,255,255,0.5); color: var(--text); text-align: right;
+    }
+    .dark .setting-input { background: rgba(0,0,0,0.2); border-color: rgba(255,255,255,0.1); color: white; }
+
+
+    /* --- Header --- */
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 4px; flex-wrap: wrap; gap: 10px;
+    }
+    
+    .brand {
+      font-weight: 700; font-size: 18px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    
+    /* --- LOGO STYLING & PROTECTION --- */
+    .app-logo {
+      width: 40px; 
+      height: 40px; /* 1:1 Ratio */
+      border-radius: 10px;
+      object-fit: contain;
+      /* Protection Code */
+      pointer-events: none; 
+      -webkit-touch-callout: none;
+      -webkit-user-drag: none;
+      user-select: none;
+    }
+
+    .brand span { background: var(--primary); color: white; padding: 2px 6px; border-radius: 6px; font-size: 12px; }
+
+    .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    /* Buttons */
+    button, .btn-label {
+      padding: 8px 14px; border-radius: 10px; border: none;
+      background: var(--surface); border: 1px solid var(--surface-border);
+      color: var(--text); cursor: pointer; font-size: 13px; font-weight: 500;
+      transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;
+      white-space: nowrap;
+    }
+    button:hover, .btn-label:hover { background: rgba(255,255,255,0.8); transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    button.primary, .btn-label.primary { background: var(--primary); color: white; border-color: transparent; }
+    button.primary:hover { background: var(--primary-dark); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .danger-btn { color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
+    .danger-btn:hover { background: #fef2f2; }
+
+    input[type="file"] { display: none; }
+
+    /* --- Main Layout --- */
+    main {
+      flex: 1; display: grid;
+      grid-template-columns: 1fr 380px; /* PC Layout */
+      gap: 16px; overflow: hidden;
+    }
+
+    /* Card Style */
+    .card {
+      background: var(--surface);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* --- Left: Preview --- */
+    .preview-section {
+      display: flex; flex-direction: column; gap: 16px;
+      padding: 20px; align-items: center; justify-content: center;
+      position: relative;
+    }
+
+    .canvas-container {
+      width: 100%; max-width: 500px; aspect-ratio: 1;
+      background: repeating-conic-gradient(#80808015 0% 25%, transparent 0% 50%) 50% / 20px 20px;
+      border-radius: 12px; border: 1px solid var(--surface-border);
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; position: relative;
+    }
+    
+    #anim { width: 100%; height: 100%; }
+
+    .controls-bar {
+      width: 100%; max-width: 500px;
+      background: rgba(0,0,0,0.03); padding: 12px; border-radius: 12px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+
+    .timeline { display: flex; align-items: center; gap: 10px; }
+    input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); height: 4px; }
+    
+    /* Updated Filters: Horizontal Scroll */
+    .filters-row { display: flex; flex-direction: column; gap: 10px; }
+    .filter-pills { 
+      display: flex; gap: 4px; 
+      background: rgba(0,0,0,0.05); padding: 4px; border-radius: 10px;
+      overflow-x: auto; white-space: nowrap; /* Scrollable */
+      scrollbar-width: none; /* Hide scrollbar FF */
+      -ms-overflow-style: none; /* Hide scrollbar IE */
+    }
+    .filter-pills::-webkit-scrollbar { display: none; }
+
+    .filter-btn {
+      padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border:none; background: transparent; color: var(--text-muted);
+      flex-shrink: 0; transition: 0.2s;
+    }
+    .filter-btn.active { background: var(--card-bg, #fff); color: var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); font-weight: 600; }
+    .dark .filter-btn.active { background: #334155; color: #fff; }
+
+    /* --- Right: Editor --- */
+    .editor-section { display: flex; flex-direction: column; padding: 0; }
+
+    .tabs { display: flex; border-bottom: 1px solid var(--surface-border); padding: 0 16px; align-items: center; }
+    .tab-btn {
+      flex: 1; padding: 14px; background: transparent; border: none; border-bottom: 2px solid transparent;
+      font-weight: 600; color: var(--text-muted); cursor: pointer; transition: 0.2s;
+    }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .tab-content { flex: 1; overflow-y: auto; padding: 16px; display: none; }
+    .tab-content.active { display: block; }
+
+    /* Colors Grid */
+    #colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+    
+    .color-card {
+      background: rgba(255,255,255,0.5); border: 1px solid var(--surface-border);
+      border-radius: 10px; padding: 8px; display: flex; align-items: center; gap: 8px;
+    }
+    .dark .color-card { background: rgba(255,255,255,0.03); }
+
+    .color-card input[type=color] {
+      width: 32px; height: 32px; border-radius: 8px; border: none; padding: 0; flex-shrink: 0; cursor: pointer;
+    }
+    .hexInput {
+      width: 100%; background: transparent; border: none; font-family: monospace; color: var(--text); font-size: 12px;
+    }
+    
+    /* Layers List */
+    .layer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px; border-bottom: 1px solid var(--surface-border);
+    }
+    .layer:last-child { border: none; }
+    .layer input[type="text"] {
+      background: transparent; border: 1px solid transparent; color: var(--text); width: 100%; font-size: 13px;
+    }
+    .layer input[type="text"]:focus { border-bottom: 1px solid var(--primary); outline: none; }
+    .mini { display:none; } 
+    
+    /* --- GLASS MODAL --- */
+    .modal {
+      position: fixed; inset: 0; 
+      background: rgba(0, 0, 0, 0.2);
+      z-index: 100;
+      display: flex; align-items: center; justify-content: center; 
+      opacity: 0; pointer-events: none; transition: 0.3s ease;
+      backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+    }
+    .modal.show { opacity: 1; pointer-events: auto; }
+
+    .modalCard {
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+      padding: 28px; border-radius: 24px; width: 90%; max-width: 360px;
+      transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .modal.show .modalCard { transform: scale(1); }
+
+    .dark .modalCard {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+      color: #fff;
+    }
+    
+    .modal-btn-row { display: grid; gap: 12px; margin-top: 20px; }
+    .modal-btn-row button { width: 100%; justify-content: center; padding: 12px; font-size: 14px; }
+
+    /* --- Responsive / Mobile --- */
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; overflow: visible; }
+      body { height: auto; min-height: 100vh; }
+      .preview-section { padding: 10px; position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--surface-border); }
+      .canvas-container { max-width: 100%; height: 300px; aspect-ratio: auto; }
+      .editor-section { height: 500px; } 
+      .actions span { display: none; }
+    }
+    
+    @media (max-width: 480px) {
+      header h1 { font-size: 16px; }
+      .brand span { display: none; }
+      .color-card { padding: 6px; }
+      #colors { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  
+  <div id="dropOverlay">
+    <i class="ri-drag-drop-line" style="font-size: 64px; margin-bottom: 16px;"></i>
+    Drop Lottie File Here
+  </div>
+
+  <header>
+    <div class="brand">
+      <img src="logo.svg" class="app-logo" alt="Logo">
+      Magic Mall
+      <span>Editor</span>
+    </div>
+    <div class="actions">
+      <label class="btn-label primary">
+        <i class="ri-upload-cloud-line"></i> Open
+        <input id="fileInput" type="file" accept=".json,.tgs" />
+      </label>
+      <button id="undoBtn" class="ghost"><i class="ri-arrow-go-back-line"></i></button>
+      <button id="redoBtn" class="ghost"><i class="ri-arrow-go-forward-line"></i></button>
+      <button id="settingsBtn" class="ghost" title="Animation Settings"><i class="ri-settings-3-line"></i></button>
+      <button id="exportMenuBtn"><i class="ri-download-2-line"></i> Save</button>
+      <button id="darkToggle"><i class="ri-moon-line"></i></button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card preview-section">
+      <div class="canvas-container">
+        <div id="preview-placeholder" style="color:var(--text-muted);text-align:center; position:absolute;">
+          <i class="ri-image-add-line" style="font-size:32px;opacity:0.5"></i><br>Open a JSON/TGS file
+        </div>
+        <div id="anim"></div>
+      </div>
+
+      <div class="controls-bar">
+        <div class="timeline">
+          <button id="playPauseBtn" class="primary" style="padding:6px 12px"><i class="ri-play-fill"></i></button>
+          <input id="frameSlider" type="range" value="0" min="0" max="100" disabled />
+          <div class="muted" style="width:70px; text-align:right; font-size:11px"> 
+             <span id="frameLabel">0</span> / <span id="totalLabel">0</span> 
+          </div>
+        </div>
+        
+        <div class="filters-row">
+          <div class="filter-pills">
+            <button class="filter-btn active" data-filter="All">All</button>
+            <button class="filter-btn" data-filter="Fill">Fill</button>
+            <button class="filter-btn" data-filter="Stroke">Stroke</button>
+            <button class="filter-btn" data-filter="Gradient Fill">Gradient Fill</button>
+            <button class="filter-btn" data-filter="Gradient Stroke">Gradient Stroke</button>
+          </div>
+          
+          <div style="display:flex; align-items:center; gap:6px; margin-left:4px;">
+            <input id="groupDuplicates" type="checkbox" style="accent-color:var(--primary)">
+            <label for="groupDuplicates" style="font-size:11px; color:var(--text-muted)">Group Colors</label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card editor-section">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('colors')">Colors (<span id="colorStats">0</span>)</button>
+        <button class="tab-btn" onclick="switchTab('layers')">Layers</button>
+        <button id="resetColorsBtn" class="danger-btn" style="padding:6px 10px; font-size:12px; margin-left:auto" title="Reset Colors">
+          <i class="ri-refresh-line"></i> Reset
+        </button>
+      </div>
+
+      <div id="tab-colors" class="tab-content active">
+        <div id="colors"></div>
+      </div>
+
+      <div id="tab-layers" class="tab-content">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+           <button id="refreshLayers" style="padding:4px 8px;font-size:11px">Refresh</button>
+        </div>
+        <div id="layerList"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="export-modal" class="modal" aria-hidden="true">
+    <div class="modalCard">
+      <div style="text-align:center; margin-bottom:16px;">
+        <i class="ri-download-cloud-2-line" style="font-size:32px; color:var(--primary)"></i>
+      </div>
+      <h3 style="margin:0 0 8px 0; font-size:18px;">Export Animation</h3>
+      <p class="muted" style="margin:0; font-size:13px; line-height:1.5;">Choose your preferred format to download the modified animation.</p>
+      
+      <div class="modal-btn-row">
+        <button id="export-as-json" class="ghost" style="border:1px solid var(--primary); color:var(--primary)">
+          <i class="ri-file-code-line"></i> Download JSON
+        </button>
+        <button id="export-as-tgs" class="primary" style="background:#2AABEE; border:none;">
+          <i class="ri-telegram-line"></i> Download for Telegram
+        </button>
+        <button class="ghost modal-close" style="color:var(--text-muted); border-color:var(--surface-border)">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="settings-modal" class="modal" aria-hidden="true">
+    <div class="modalCard">
+      <h3 style="margin-top:0">Animation Settings</h3>
+      <div class="setting-row">
+        <label>Width (px)</label>
+        <input type="number" id="set-w" class="setting-input">
+      </div>
+      <div class="setting-row">
+        <label>Height (px)</label>
+        <input type="number" id="set-h" class="setting-input">
+      </div>
+      <div class="setting-row">
+        <label>Frame Rate (fps)</label>
+        <input type="number" id="set-fr" class="setting-input">
+      </div>
+      <div style="margin-top:20px; display:flex; gap:10px">
+        <button id="applySettings" class="primary" style="flex:1">Apply</button>
+        <button class="ghost modal-close settings-close" style="flex:1">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div style="text-align:center; font-size:11px; color:var(--text-muted); padding-bottom:12px">
+    Created By @Magic_Mall_GameShop © 2025
+  </div>
+
+<script>
+/* ===========================
+   State & Core variables
+   =========================== */
+let originalAnimData = null;    
+let animData = null;            
+let anim = null;                
+
+let historyStack = [];
+let redoStack = [];
+const MAX_HISTORY = 60;
+
+const slider = document.getElementById("frameSlider");
+const frameLabel = document.getElementById("frameLabel");
+const totalLabel = document.getElementById("totalLabel");
+const groupCheckbox = document.getElementById("groupDuplicates");
+const colorsContainer = document.getElementById("colors");
+const colorStats = document.getElementById("colorStats");
+const layerListEl = document.getElementById("layerList");
+// NEW SETTINGS ELEMENTS
+const dropOverlay = document.getElementById('dropOverlay');
+const setModal = document.getElementById('settings-modal');
+const inpW = document.getElementById('set-w');
+const inpH = document.getElementById('set-h');
+const inpFR = document.getElementById('set-fr');
+
+
+let allExtractedColors = [];
+let groupedColors = {};
+let currentFilter = "All";
+
+let playerState = { isPaused: true, currentFrame: 0 };
+
+/* ===========================
+   Tab Logic
+   =========================== */
+window.switchTab = (tabName) => {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById(`tab-${tabName}`).classList.add('active');
+  document.querySelector(`.tab-btn[onclick="switchTab('${tabName}')"]`).classList.add('active');
+}
+
+/* ===========================
+   History
+   =========================== */
+function pushHistory() {
+  if (!animData) return;
+  const snap = JSON.parse(JSON.stringify(animData));
+  const last = historyStack[historyStack.length - 1];
+  if (last && JSON.stringify(last) === JSON.stringify(snap)) return;
+  historyStack.push(snap);
+  if (historyStack.length > MAX_HISTORY) historyStack.shift();
+  redoStack = [];
+  updateUndoRedoButtons();
+}
+function undoChange() {
+  if (historyStack.length <= 1) return;
+  redoStack.push(historyStack.pop());
+  animData = JSON.parse(JSON.stringify(historyStack[historyStack.length - 1]));
+  applyAfterDataChange();
+  updateUndoRedoButtons();
+}
+function redoChange() {
+  if (!redoStack.length) return;
+  const state = redoStack.pop();
+  historyStack.push(JSON.parse(JSON.stringify(animData)));
+  animData = state;
+  applyAfterDataChange();
+  updateUndoRedoButtons();
+}
+function updateUndoRedoButtons() {
+  document.getElementById('undoBtn').disabled = historyStack.length <= 1;
+  document.getElementById('redoBtn').disabled = redoStack.length === 0;
+}
+document.getElementById('undoBtn').addEventListener('click', undoChange);
+document.getElementById('redoBtn').addEventListener('click', redoChange);
+document.addEventListener('keydown', (e) => {
+  const isCmd = e.ctrlKey || e.metaKey;
+  if (!isCmd) return;
+  if (e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    if (e.shiftKey) redoChange(); else undoChange();
+  }
+});
+
+/* ===========================
+   Reset Logic
+   =========================== */
+document.getElementById('resetColorsBtn').addEventListener('click', () => {
+  if (!originalAnimData) return;
+  if (confirm("Reset all colors to original?")) {
+    // Restore from backup
+    animData = JSON.parse(JSON.stringify(originalAnimData));
+    pushHistory();
+    applyAfterDataChange();
+  }
+});
+
+/* ===========================
+   File Load (Unified for button and drop)
+   =========================== */
+// NEW: FILE LOADING LOGIC MOVED TO FUNCTION
+async function loadFile(file) {
+  if (!file) return;
+  const name = file.name.toLowerCase();
+  
+  try {
+    let txt;
+    if (name.endsWith('.tgs')) {
+      const buf = await file.arrayBuffer();
+      const decompressed = pako.ungzip(new Uint8Array(buf), { to: 'string' });
+      txt = decompressed;
+    } else {
+      txt = await file.text();
+    }
+    originalAnimData = JSON.parse(txt);
+    animData = JSON.parse(txt);
+    historyStack = [];
+    redoStack = [];
+    historyStack.push(JSON.parse(JSON.stringify(animData)));
+    updateUndoRedoButtons();
+
+    document.getElementById('preview-placeholder').style.display = 'none';
+    slider.disabled = false;
+    
+    extractAndRenderColors();
+    renderLayers();
+    reloadAnim();
+  } catch (err) {
+    console.error(err);
+    alert('Error parsing file: ' + err.message);
+  }
+}
+
+// EXISTING: File Input listener now calls loadFile()
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  await loadFile(e.target.files[0]);
+  e.target.value = null; // Clear input for next load
+});
+
+/* ===========================
+   NEW: Drag and Drop Logic
+   =========================== */
+// Prevent default drag behaviors
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+  document.body.addEventListener(eventName, preventDefaults, false);
+});
+
+function preventDefaults(e) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+// Show overlay on drag enter/over
+['dragenter', 'dragover'].forEach(eventName => {
+  document.body.addEventListener(eventName, () => document.body.classList.add('dragging'), false);
+});
+
+// Hide overlay on drag leave/drop
+['dragleave', 'drop'].forEach(eventName => {
+  document.body.addEventListener(eventName, () => document.body.classList.remove('dragging'), false);
+});
+
+// Handle Drop
+document.body.addEventListener('drop', handleDrop, false);
+
+function handleDrop(e) {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  if(files.length > 0) {
+    loadFile(files[0]);
+  }
+}
+
+/* ===========================
+   Lottie Player
+   =========================== */
+function reloadAnim() {
+  if (anim) {
+    try { playerState.currentFrame = anim.currentFrame; } catch(e){}
+    anim.destroy();
+    document.getElementById('anim').innerHTML = '';
+  }
+  if (!animData) return;
+  anim = lottie.loadAnimation({
+    container: document.getElementById('anim'),
+    renderer: 'svg',
+    loop: true,
+    autoplay: false,
+    animationData: animData
+  });
+  anim.addEventListener('DOMLoaded', () => {
+    const total = Math.round(anim.totalFrames || 0);
+    slider.max = Math.max(0, total - 1);
+    totalLabel.textContent = total;
+    if (playerState.isPaused) {
+      anim.goToAndStop(playerState.currentFrame || 0, true);
+      document.getElementById('playPauseBtn').innerHTML = '<i class="ri-play-fill"></i>';
+    } else {
+      anim.goToAndPlay(playerState.currentFrame || 0, true);
+      document.getElementById('playPauseBtn').innerHTML = '<i class="ri-pause-fill"></i>';
+    }
+  });
+  anim.addEventListener('enterFrame', () => {
+    try {
+      if(!slider.matches(':active')) {
+        slider.value = anim.currentFrame;
+        frameLabel.textContent = Math.round(anim.currentFrame);
+      }
+    } catch(e){}
+  });
+}
+
+slider.addEventListener('input', () => {
+  if (!anim) return;
+  playerState.currentFrame = parseFloat(slider.value);
+  if (!anim.isPaused) { 
+    anim.pause(); 
+    document.getElementById('playPauseBtn').innerHTML = '<i class="ri-play-fill"></i>'; 
+    playerState.isPaused = true; 
+  }
+  anim.goToAndStop(playerState.currentFrame, true);
+  frameLabel.textContent = Math.round(playerState.currentFrame);
+});
+document.getElementById('playPauseBtn').addEventListener('click', () => {
+  if (!anim) return;
+  if (anim.isPaused) { 
+    anim.play(); 
+    document.getElementById('playPauseBtn').innerHTML = '<i class="ri-pause-fill"></i>'; 
+    playerState.isPaused = false; 
+  }
+  else { 
+    anim.pause(); 
+    document.getElementById('playPauseBtn').innerHTML = '<i class="ri-play-fill"></i>'; 
+    playerState.isPaused = true; 
+  }
+});
+
+/* ===========================
+   NEW: Settings Logic (Width, Height, FPS)
+   =========================== */
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  if(!animData) return alert("Load a Lottie file first.");
+  inpW.value = animData.w;
+  inpH.value = animData.h;
+  inpFR.value = animData.fr;
+  setModal.classList.add('show');
+});
+
+setModal.querySelectorAll('.settings-close').forEach(btn => {
+    btn.onclick = () => setModal.classList.remove('show');
+});
+
+document.getElementById('applySettings').addEventListener('click', () => {
+  if(!animData) return;
+  
+  const newW = parseInt(inpW.value);
+  const newH = parseInt(inpH.value);
+  const newFr = parseFloat(inpFR.value);
+  
+  if (isNaN(newW) || isNaN(newH) || isNaN(newFr) || newW <= 0 || newH <= 0 || newFr <= 0) {
+      return alert("Please enter valid positive numbers for all fields.");
+  }
+
+  // Only push history if data actually changes
+  if(animData.w !== newW || animData.h !== newH || animData.fr !== newFr) {
+    pushHistory();
+    animData.w = newW;
+    animData.h = newH;
+    animData.fr = newFr;
+    
+    // Changes applied will take effect on the next reload
+    reloadAnim(); 
+    
+    // Update total frames if the frame rate changed
+    totalLabel.textContent = Math.round(anim.totalFrames);
+  }
+  
+  setModal.classList.remove('show');
+});
+
+/* ===========================
+   Color Extraction (Enhanced)
+   =========================== */
+function resetGroupedColors(){ groupedColors = {}; }
+function rgbaToHex(arr){
+  if(!arr || arr.length < 3) return '#000000';
+  const r = Math.round(arr[0]*255), g = Math.round(arr[1]*255), b = Math.round(arr[2]*255);
+  return rgbToHex(r,g,b);
+}
+function rgbToHex(r,g,b){
+  return '#'+[r,g,b].map(x=>Math.round(x).toString(16).padStart(2,'0')).join('');
+}
+function hexToRgb(hex){
+  const bigint = parseInt(hex.slice(1),16);
+  return { r: (bigint>>16)&255, g: (bigint>>8)&255, b: bigint & 255 };
+}
+
+function extractColors(obj){
+  resetGroupedColors();
+  const out = [];
+  const recursive = (o) => {
+    if (!o || typeof o !== 'object') return;
+    
+    // 1. Solid Colors (Fills and Strokes)
+    if (o.c && o.c.k) {
+      let sType = 'Solid';
+      if (o.ty === 'fl') sType = 'Fill';
+      else if (o.ty === 'st') sType = 'Stroke';
+      
+      if (o.c.a === 1 && Array.isArray(o.c.k)) {
+        o.c.k.forEach(kf => { 
+          if (kf.s) { 
+            const hx = rgbaToHex(kf.s); 
+            out.push({ref:kf, shapeType:sType, hex:hx, type:'solid'}); 
+            (groupedColors[hx]=groupedColors[hx]||{hex:hx,instances:[]}).instances.push({ref:kf, type:'solid', shapeType:sType}); 
+          }
+        });
+      } else if (Array.isArray(o.c.k)) {
+        const hx = rgbaToHex(o.c.k);
+        out.push({ref:o.c, shapeType:sType, hex:hx, type:'solid'});
+        (groupedColors[hx]=groupedColors[hx]||{hex:hx,instances:[]}).instances.push({ref:o.c, type:'solid', shapeType:sType});
+      }
+    }
+    
+    // 2. Legacy 'sc' stroke
+    if (o.sc && o.sc.k) {
+      let sType = 'Stroke';
+      if (o.sc.a === 1 && Array.isArray(o.sc.k)) {
+        o.sc.k.forEach(kf => { 
+          if (kf.s) { 
+            const hx = rgbaToHex(kf.s); 
+            out.push({ref:kf, shapeType:sType, hex:hx, type:'stroke'}); 
+            (groupedColors[hx]=groupedColors[hx]||{hex:hx,instances:[]}).instances.push({ref:kf, type:'stroke', shapeType:sType}); 
+          }
+        });
+      } else if (Array.isArray(o.sc.k)) {
+        const hx = rgbaToHex(o.sc.k);
+        out.push({ref:o.sc, shapeType:sType, hex:hx, type:'stroke'});
+        (groupedColors[hx]=groupedColors[hx]||{hex:hx,instances:[]}).instances.push({ref:o.sc, type:'stroke', shapeType:sType});
+      }
+    }
+    
+    // 3. Gradients
+    if (o.g) {
+      let sType = 'Gradient';
+      if (o.ty === 'gf') sType = 'Gradient Fill';
+      else if (o.ty === 'gs') sType = 'Gradient Stroke';
+
+      const processGradient = (arr, ref) => {
+        const numStops = o.g.p || Math.floor(arr.length / 4);
+        const loopLimit = numStops * 4;
+        for (let i=0;i<loopLimit;i+=4){
+          const r = arr[i+1], g = arr[i+2], b = arr[i+3];
+          const hx = rgbToHex(Math.round(r*255), Math.round(g*255), Math.round(b*255));
+          out.push({ref:ref, shapeType:sType, hex:hx, type:'gradient', index:i});
+          (groupedColors[hx]=groupedColors[hx]||{hex:hx,instances:[]}).instances.push({ref:ref, type:'gradient', shapeType:sType, index:i});
+        }
+      };
+      if (o.g.k && !o.g.k.a && Array.isArray(o.g.k)) processGradient(o.g.k, o.g);
+      else if (o.g.k && o.g.k.a === 1 && Array.isArray(o.g.k.k)) o.g.k.k.forEach(kf => { if (kf.s) processGradient(kf.s, kf); });
+      else if (o.g.k && o.g.k.k && Array.isArray(o.g.k.k) && typeof o.g.k.k[0] === 'number') processGradient(o.g.k.k, o.g.k);
+    }
+    for (const k in o) recursive(o[k]);
+  };
+  recursive(obj);
+  return out;
+}
+
+function extractAndRenderColors(){
+  if (!animData) return;
+  allExtractedColors = extractColors(animData);
+  applyCurrentFilter();
+}
+
+/* ===========================
+   Render Colors
+   =========================== */
+function applyCurrentFilter(){
+  const activeBtn = document.querySelector(`[data-filter="${currentFilter}"]`);
+  filterAndRender(currentFilter, activeBtn);
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn=>{
+  btn.addEventListener('click', (e)=>{
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    applyCurrentFilter();
+  });
+});
+groupCheckbox.addEventListener('change', ()=> applyCurrentFilter());
+
+function filterAndRender(filterType, activeButton) {
+  let colorsToRender = [];
+  const groupedMode = groupCheckbox.checked;
+
+  // Precise Filter Logic
+  const cond = (c) => {
+    if (filterType === 'All') return true;
+    return c.shapeType === filterType; // Exact match 'Fill', 'Stroke', 'Gradient Fill', etc.
+  };
+
+  if (groupedMode) {
+    colorsToRender = Object.values(groupedColors).filter(g => g.instances.some(cond));
+  } else {
+    colorsToRender = allExtractedColors.filter(cond);
+  }
+
+  colorStats.textContent = `${colorsToRender.length}`;
+  renderColors(colorsToRender, groupedMode);
+}
+
+function renderColors(colors, isGrouped) {
+  colorsContainer.innerHTML = '';
+  if (!colors || colors.length === 0) {
+    colorsContainer.innerHTML = '<div class="muted">No colors found.</div>';
+    return;
+  }
+  colors.forEach((c, idx) => {
+    const card = document.createElement('div'); card.className = 'color-card';
+    const colorInput = document.createElement('input'); colorInput.type = 'color';
+    
+    let hexVal = '#000000';
+    if (isGrouped) hexVal = c.hex || (c.instances && c.instances[0] && (c.instances[0].ref && c.instances[0].ref.k ? rgbaToHex(Array.isArray(c.instances[0].ref.k) ? c.instances[0].ref.k : (c.instances[0].ref.s || c.instances[0].ref.k)) : '#000000'));
+    else hexVal = c.hex || (c.ref && (c.ref.k ? (Array.isArray(c.ref.k) ? rgbaToHex(c.ref.k) : (c.ref.s ? rgbaToHex(c.ref.s) : '#000')) : '#000000'));
+    colorInput.value = hexVal;
+
+    const hexInput = document.createElement('input'); hexInput.className = 'hexInput'; hexInput.value = hexVal.toUpperCase();
+
+    colorInput.addEventListener('input', () => {
+      hexInput.value = colorInput.value.toUpperCase();
+      applyColorChange(c, isGrouped, colorInput.value);
+      pushHistory();
+    });
+    colorInput.addEventListener('focus', () => pushHistory());
+
+    hexInput.addEventListener('input', () => {
+      const v = hexInput.value.trim();
+      if (/^#([A-Fa-f0-9]{6})$/.test(v)) {
+        colorInput.value = v;
+        applyColorChange(c, isGrouped, v);
+        pushHistory();
+      }
+    });
+    hexInput.addEventListener('focus', () => pushHistory());
+
+    card.appendChild(colorInput);
+    card.appendChild(hexInput);
+    colorsContainer.appendChild(card);
+  });
+}
+
+function applyColorChange(groupObj, isGrouped, hex) {
+  if (!animData) return;
+  const { r, g, b } = hexToRgb(hex);
+  const nr = r/255, ng = g/255, nb = b/255;
+
+  const instances = isGrouped ? groupObj.instances : [groupObj];
+  instances.forEach(inst => {
+    if (!inst || !inst.ref) return;
+    if (inst.type === 'solid' || inst.type === 'stroke') {
+      if (inst.ref.hasOwnProperty('s') && Array.isArray(inst.ref.s)) {
+        inst.ref.s = [nr, ng, nb, 1];
+      } else if (inst.ref.hasOwnProperty('k') && Array.isArray(inst.ref.k)) {
+        inst.ref.k = [nr, ng, nb, 1];
+      }
+    } else if (inst.type === 'gradient') {
+      const arr = inst.ref.k || inst.ref.s;
+      if (Array.isArray(arr)) {
+        const pos = inst.index + 1; 
+        if (arr.length > pos + 2) {
+          arr[pos] = nr;
+          arr[pos+1] = ng;
+          arr[pos+2] = nb;
+        }
+      }
+    }
+  });
+
+  if (isGrouped) groupObj.hex = hex;
+  reloadAnim();
+}
+
+/* ===========================
+   Layers UI
+   =========================== */
+function renderLayers() {
+  layerListEl.innerHTML = '';
+  if (!animData || !animData.layers) { layerListEl.innerHTML = '<div class="muted">No layers found</div>'; return; }
+  animData.layers.forEach((layer, idx) => {
+    const row = document.createElement('div'); row.className = 'layer';
+    const nameInput = document.createElement('input'); nameInput.type='text'; nameInput.value = layer.nm || ('Layer ' + idx);
+    nameInput.addEventListener('change', ()=> { pushHistory(); layer.nm = nameInput.value; renderLayers(); });
+
+    const vis = document.createElement('input'); vis.type='checkbox'; vis.checked = !layer.hd; vis.title = 'Visible';
+    vis.addEventListener('change', ()=> { pushHistory(); layer.hd = !vis.checked; reloadAnim(); });
+
+    row.appendChild(nameInput);
+    row.appendChild(vis);
+    layerListEl.appendChild(row);
+  });
+}
+document.getElementById('refreshLayers').addEventListener('click', renderLayers);
+
+/* ===========================
+   Export Logic (Modified for Embedded Browser Fallback)
+   =========================== */
+
+function applyAfterDataChange(){
+  extractAndRenderColors();
+  renderLayers();
+  reloadAnim();
+}
+
+// Helper function to detect restrictive environment
+function isEmbeddedBrowser() {
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('wv') || ua.includes('fban') || ua.includes('fbav') || ua.includes('instagram') || ua.includes('telegram')) {
+        return true;
+    }
+    try {
+        if (window.self !== window.top) {
+            return true;
+        }
+    } catch (e) {
+        return true; 
+    }
+    return false;
+}
+
+const modal = document.getElementById('export-modal');
+const modalCard = modal.querySelector('.modalCard');
+
+// Save the original modal content for restoration
+const originalModalContent = modalCard.innerHTML;
+
+// Export functions (extracted from event listeners)
+function exportJson() {
+    if (!animData) return;
+    const final = JSON.parse(JSON.stringify(animData));
+    const jsonString = JSON.stringify(final, null, 2);
+    const blob = new Blob([jsonString], {type:'application/json'});
+    
+    const a = document.createElement('a'); 
+    a.href = URL.createObjectURL(blob); 
+    a.download = 'lottie-modified.json'; 
+    
+    document.body.appendChild(a);
+    a.click(); 
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+}
+
+function exportTgs(){
+  if (!animData) return;
+  const finalExportData = JSON.parse(JSON.stringify(originalAnimData || animData));
+  
+  const deepTraverseAndCopyColors = (src, tgt) => {
+    // ... (deepTraverseAndCopyColors logic remains the same)
+    if (!src || !tgt) return;
+    if (Array.isArray(src) && Array.isArray(tgt)) {
+      for (let i=0;i<src.length;i++){
+        if (typeof src[i] === 'object' && typeof tgt[i] === 'object') deepTraverseAndCopyColors(src[i], tgt[i]);
+      }
+    } else if (typeof src === 'object' && typeof tgt === 'object') {
+      for (const k in src) {
+        if (!src.hasOwnProperty(k)) continue;
+        if (k === 'c' || k === 'sc' || k === 'g') {
+          if (src[k] && src[k].k && tgt[k] && tgt[k].k) {
+            tgt[k].k = src[k].k;
+          } else if (Array.isArray(src[k]) && Array.isArray(tgt[k])) {
+            tgt[k] = src[k];
+          }
+        } else {
+          if (typeof src[k] === 'object' && typeof tgt[k] === 'object') deepTraverseAndCopyColors(src[k], tgt[k]);
+        }
+      }
+    }
+  };
+  deepTraverseAndCopyColors(animData, finalExportData);
+
+  finalExportData.tgs = 1; 
+
+  const jsonString = JSON.stringify(finalExportData);
+  const compressed = pako.gzip(jsonString);
+  const blob = new Blob([compressed], {type:'application/octet-stream'});
+  
+  const a = document.createElement('a'); 
+  a.href = URL.createObjectURL(blob); 
+  a.download = 'animation.tgs'; 
+  
+  document.body.appendChild(a);
+  a.click(); 
+  document.body.removeChild(a);
+  
+  URL.revokeObjectURL(a.href);
+}
+
+// Function to attach download listeners
+function attachDownloadListeners() {
+    document.getElementById('export-as-json').addEventListener('click', () => { exportJson(); modal.classList.remove('show'); });
+    document.getElementById('export-as-tgs').addEventListener('click', () => { exportTgs(); modal.classList.remove('show'); });
+    modalCard.querySelector('.modal-close').onclick = () => modal.classList.remove('show');
+}
+
+// NEW: Export Menu Button logic
+document.getElementById('exportMenuBtn').onclick = () => {
+    if(!animData) return alert("Load a Lottie file first.");
+
+    if (isEmbeddedBrowser()) {
+        modalCard.innerHTML = `
+            <div style="text-align:center; margin-bottom:16px;">
+                <i class="ri-alert-line" style="font-size:32px; color:#ffc107;"></i>
+            </div>
+            <h3 style="margin:0 0 8px 0; font-size:18px;">Download Blocked 🚫</h3>
+            <p class="muted" style="margin:0; font-size:13px; line-height:1.5;">
+                The app you are using (like Telegram or Instagram) blocks file downloads for security.
+            </p>
+            <p style="font-weight:600; font-size:14px; margin:15px 0 5px 0;">
+                ⭐ How to Download:
+            </p>
+            <ol style="padding-left: 20px; margin:0; font-size:13px;">
+                <li>Tap the **three dots** (•••) or **share icon** in the top-right corner.</li>
+                <li>Select **"Open in Browser"** (Chrome/Safari).</li>
+                <li>The download buttons will work immediately in the external browser.</li>
+            </ol>
+            <div class="modal-btn-row" style="margin-top:20px;">
+                <button class="ghost modal-close" style="color:var(--text-muted); border-color:var(--surface-border)">
+                    Close Instructions
+                </button>
+            </div>
+        `;
+        modalCard.querySelector('.modal-close').onclick = () => modal.classList.remove('show');
+
+    } else {
+        // Restore original content and re-attach listeners
+        modalCard.innerHTML = originalModalContent;
+        attachDownloadListeners();
+    }
+
+    modal.classList.add('show');
+}
+
+// Initial listener attachment (Needed for the first time the modal is opened in a normal browser)
+attachDownloadListeners();
+
+document.getElementById('darkToggle').addEventListener('click', ()=>{
+  document.body.classList.toggle('dark');
+});
+
+document.getElementById('frameLabel').textContent = '0';
+updateUndoRedoButtons();
+</script>
+</body>
+</html>
