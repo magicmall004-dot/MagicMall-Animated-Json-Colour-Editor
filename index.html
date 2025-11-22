@@ -354,24 +354,7 @@
 
   <div id="export-modal" class="modal" aria-hidden="true">
     <div class="modalCard">
-      <div style="text-align:center; margin-bottom:16px;">
-        <i class="ri-download-cloud-2-line" style="font-size:32px; color:var(--primary)"></i>
       </div>
-      <h3 style="margin:0 0 8px 0; font-size:18px;">Export Animation</h3>
-      <p class="muted" style="margin:0; font-size:13px; line-height:1.5;">Choose your preferred format to download the modified animation.</p>
-      
-      <div class="modal-btn-row">
-        <button id="export-as-json" class="ghost" style="border:1px solid var(--primary); color:var(--primary)">
-          <i class="ri-file-code-line"></i> Download JSON
-        </button>
-        <button id="export-as-tgs" class="primary" style="background:#2AABEE; border:none;">
-          <i class="ri-telegram-line"></i> Download for Telegram
-        </button>
-        <button class="ghost modal-close" style="color:var(--text-muted); border-color:var(--surface-border)">
-          Cancel
-        </button>
-      </div>
-    </div>
   </div>
   
   <div id="settings-modal" class="modal" aria-hidden="true">
@@ -427,6 +410,30 @@ const inpW = document.getElementById('set-w');
 const inpH = document.getElementById('set-h');
 const inpFR = document.getElementById('set-fr');
 
+const modal = document.getElementById('export-modal');
+const modalCard = modal.querySelector('.modalCard');
+
+// Store the standard, working modal content template
+const standardModalContentTemplate = `
+    <div style="text-align:center; margin-bottom:16px;">
+        <i class="ri-download-cloud-2-line" style="font-size:32px; color:var(--primary)"></i>
+    </div>
+    <h3 style="margin:0 0 8px 0; font-size:18px;">Export Animation</h3>
+    <p class="muted" style="margin:0; font-size:13px; line-height:1.5;">Choose your preferred format to download the modified animation.</p>
+    
+    <div class="modal-btn-row">
+        <button id="export-as-json" class="ghost" style="border:1px solid var(--primary); color:var(--primary)">
+            <i class="ri-file-code-line"></i> Download JSON
+        </button>
+        <button id="export-as-tgs" class="primary" style="background:#2AABEE; border:none;">
+            <i class="ri-telegram-line"></i> Download for Telegram
+        </button>
+        <button class="ghost modal-close" style="color:var(--text-muted); border-color:var(--surface-border)">
+            Cancel
+        </button>
+    </div>
+`;
+
 
 let allExtractedColors = [];
 let groupedColors = {};
@@ -451,6 +458,7 @@ function pushHistory() {
   if (!animData) return;
   const snap = JSON.parse(JSON.stringify(animData));
   const last = historyStack[historyStack.length - 1];
+  // Basic check to prevent pushing identical states back-to-back
   if (last && JSON.stringify(last) === JSON.stringify(snap)) return;
   historyStack.push(snap);
   if (historyStack.length > MAX_HISTORY) historyStack.shift();
@@ -503,7 +511,6 @@ document.getElementById('resetColorsBtn').addEventListener('click', () => {
 /* ===========================
    File Load (Unified for button and drop)
    =========================== */
-// NEW: FILE LOADING LOGIC MOVED TO FUNCTION
 async function loadFile(file) {
   if (!file) return;
   const name = file.name.toLowerCase();
@@ -536,16 +543,14 @@ async function loadFile(file) {
   }
 }
 
-// EXISTING: File Input listener now calls loadFile()
 document.getElementById('fileInput').addEventListener('change', async (e) => {
   await loadFile(e.target.files[0]);
   e.target.value = null; // Clear input for next load
 });
 
 /* ===========================
-   NEW: Drag and Drop Logic
+   Drag and Drop Logic
    =========================== */
-// Prevent default drag behaviors
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
   document.body.addEventListener(eventName, preventDefaults, false);
 });
@@ -555,17 +560,14 @@ function preventDefaults(e) {
   e.stopPropagation();
 }
 
-// Show overlay on drag enter/over
 ['dragenter', 'dragover'].forEach(eventName => {
   document.body.addEventListener(eventName, () => document.body.classList.add('dragging'), false);
 });
 
-// Hide overlay on drag leave/drop
 ['dragleave', 'drop'].forEach(eventName => {
   document.body.addEventListener(eventName, () => document.body.classList.remove('dragging'), false);
 });
 
-// Handle Drop
 document.body.addEventListener('drop', handleDrop, false);
 
 function handleDrop(e) {
@@ -641,7 +643,7 @@ document.getElementById('playPauseBtn').addEventListener('click', () => {
 });
 
 /* ===========================
-   NEW: Settings Logic (Width, Height, FPS)
+   Settings Logic (Width, Height, FPS)
    =========================== */
 document.getElementById('settingsBtn').addEventListener('click', () => {
   if(!animData) return alert("Load a Lottie file first.");
@@ -666,17 +668,14 @@ document.getElementById('applySettings').addEventListener('click', () => {
       return alert("Please enter valid positive numbers for all fields.");
   }
 
-  // Only push history if data actually changes
   if(animData.w !== newW || animData.h !== newH || animData.fr !== newFr) {
     pushHistory();
     animData.w = newW;
     animData.h = newH;
     animData.fr = newFr;
     
-    // Changes applied will take effect on the next reload
     reloadAnim(); 
     
-    // Update total frames if the frame rate changed
     totalLabel.textContent = Math.round(anim.totalFrames);
   }
   
@@ -799,10 +798,9 @@ function filterAndRender(filterType, activeButton) {
   let colorsToRender = [];
   const groupedMode = groupCheckbox.checked;
 
-  // Precise Filter Logic
   const cond = (c) => {
     if (filterType === 'All') return true;
-    return c.shapeType === filterType; // Exact match 'Fill', 'Stroke', 'Gradient Fill', etc.
+    return c.shapeType === filterType;
   };
 
   if (groupedMode) {
@@ -908,7 +906,7 @@ function renderLayers() {
 document.getElementById('refreshLayers').addEventListener('click', renderLayers);
 
 /* ===========================
-   Export Logic (Modified for Embedded Browser Fallback)
+   Export Logic (Modified for robust downloading and environment checks)
    =========================== */
 
 function applyAfterDataChange(){
@@ -917,109 +915,124 @@ function applyAfterDataChange(){
   reloadAnim();
 }
 
-// Helper function to detect restrictive environment
+// Helper function to detect restrictive environment (Mini App View)
 function isEmbeddedBrowser() {
     const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes('wv') || ua.includes('fban') || ua.includes('fbav') || ua.includes('instagram') || ua.includes('telegram')) {
+    // Check for general webview keywords
+    if (ua.includes('wv') || ua.includes('fban') || ua.includes('fbav') || ua.includes('instagram')) {
         return true;
     }
+    // Check specifically for Telegram's in-app browser
+    if (ua.includes('telegram')) { 
+        return true; 
+    }
     try {
+        // Check if the window is framed (Mini Apps run in an iframe)
         if (window.self !== window.top) {
             return true;
         }
     } catch (e) {
+        // Accessing window.top can throw an error if blocked (common in webviews)
         return true; 
     }
     return false;
 }
 
-const modal = document.getElementById('export-modal');
-const modalCard = modal.querySelector('.modalCard');
+// Helper function for reliable download
+function initiateDownload(blob, filename) {
+    const a = document.createElement('a'); 
+    a.href = URL.createObjectURL(blob); 
+    a.download = filename; 
+    
+    // Use the standard click mechanism
+    document.body.appendChild(a);
+    a.click(); 
+    document.body.removeChild(a);
+    
+    URL.revokeObjectURL(a.href);
+}
 
-// Save the original modal content for restoration
-const originalModalContent = modalCard.innerHTML;
 
-// Export functions (extracted from event listeners)
 function exportJson() {
     if (!animData) return;
     const final = JSON.parse(JSON.stringify(animData));
     const jsonString = JSON.stringify(final, null, 2);
     const blob = new Blob([jsonString], {type:'application/json'});
     
-    const a = document.createElement('a'); 
-    a.href = URL.createObjectURL(blob); 
-    a.download = 'lottie-modified.json'; 
-    
-    document.body.appendChild(a);
-    a.click(); 
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
+    initiateDownload(blob, 'lottie-modified.json');
 }
 
 function exportTgs(){
   if (!animData) return;
+  // Use the original data as a base to avoid breaking TGS format requirements, 
+  // but copy over the modified colors/properties.
   const finalExportData = JSON.parse(JSON.stringify(originalAnimData || animData));
   
+  // A simplified and more focused deep copy of colors/properties is safer for TGS
   const deepTraverseAndCopyColors = (src, tgt) => {
-    // ... (deepTraverseAndCopyColors logic remains the same)
-    if (!src || !tgt) return;
-    if (Array.isArray(src) && Array.isArray(tgt)) {
-      for (let i=0;i<src.length;i++){
-        if (typeof src[i] === 'object' && typeof tgt[i] === 'object') deepTraverseAndCopyColors(src[i], tgt[i]);
-      }
-    } else if (typeof src === 'object' && typeof tgt === 'object') {
-      for (const k in src) {
-        if (!src.hasOwnProperty(k)) continue;
-        if (k === 'c' || k === 'sc' || k === 'g') {
-          if (src[k] && src[k].k && tgt[k] && tgt[k].k) {
-            tgt[k].k = src[k].k;
-          } else if (Array.isArray(src[k]) && Array.isArray(tgt[k])) {
-            tgt[k] = src[k];
-          }
-        } else {
-          if (typeof src[k] === 'object' && typeof tgt[k] === 'object') deepTraverseAndCopyColors(src[k], tgt[k]);
+    if (!src || !tgt || typeof src !== 'object' || typeof tgt !== 'object') return;
+    
+    // Check for color properties
+    ['c', 'sc', 'g'].forEach(k => {
+      if (src[k] && tgt[k]) {
+        if (src[k].k !== undefined && tgt[k].k !== undefined) {
+          // Copy color keyframe array or single value
+          tgt[k].k = src[k].k;
         }
+      }
+    });
+    
+    // Recurse for nested objects/arrays
+    for (const k in src) {
+      if (!src.hasOwnProperty(k) || k === 'c' || k === 'sc' || k === 'g') continue;
+      if (typeof src[k] === 'object' && typeof tgt[k] === 'object') {
+        deepTraverseAndCopyColors(src[k], tgt[k]);
       }
     }
   };
+
   deepTraverseAndCopyColors(animData, finalExportData);
 
-  finalExportData.tgs = 1; 
+  finalExportData.tgs = 1; // Telegram sticker flag
 
   const jsonString = JSON.stringify(finalExportData);
   const compressed = pako.gzip(jsonString);
   const blob = new Blob([compressed], {type:'application/octet-stream'});
   
-  const a = document.createElement('a'); 
-  a.href = URL.createObjectURL(blob); 
-  a.download = 'animation.tgs'; 
-  
-  document.body.appendChild(a);
-  a.click(); 
-  document.body.removeChild(a);
-  
-  URL.revokeObjectURL(a.href);
+  initiateDownload(blob, 'animation.tgs');
 }
 
-// Function to attach download listeners
+
+// Function to attach download listeners to the standard modal content
 function attachDownloadListeners() {
+    // Clear previous listeners (important when restoring content)
+    const jsonBtn = document.getElementById('export-as-json');
+    const tgsBtn = document.getElementById('export-as-tgs');
+    
+    // Remove listeners if they were somehow attached previously to avoid duplicates
+    jsonBtn.replaceWith(jsonBtn.cloneNode(true));
+    tgsBtn.replaceWith(tgsBtn.cloneNode(true));
+    
+    // Get the fresh buttons
     document.getElementById('export-as-json').addEventListener('click', () => { exportJson(); modal.classList.remove('show'); });
     document.getElementById('export-as-tgs').addEventListener('click', () => { exportTgs(); modal.classList.remove('show'); });
     modalCard.querySelector('.modal-close').onclick = () => modal.classList.remove('show');
 }
 
-// NEW: Export Menu Button logic
+
+// Export Menu Button logic: The core of the request
 document.getElementById('exportMenuBtn').onclick = () => {
     if(!animData) return alert("Load a Lottie file first.");
 
     if (isEmbeddedBrowser()) {
+        // --- SCENARIO 1: Download WILL NOT WORK (Show Notice) ---
         modalCard.innerHTML = `
             <div style="text-align:center; margin-bottom:16px;">
                 <i class="ri-alert-line" style="font-size:32px; color:#ffc107;"></i>
             </div>
             <h3 style="margin:0 0 8px 0; font-size:18px;">Download Blocked 🚫</h3>
             <p class="muted" style="margin:0; font-size:13px; line-height:1.5;">
-                The app you are using (like Telegram or Instagram) blocks file downloads for security.
+                The Telegram Mini App blocks direct file downloads for security.
             </p>
             <p style="font-weight:600; font-size:14px; margin:15px 0 5px 0;">
                 ⭐ How to Download:
@@ -1038,16 +1051,13 @@ document.getElementById('exportMenuBtn').onclick = () => {
         modalCard.querySelector('.modal-close').onclick = () => modal.classList.remove('show');
 
     } else {
-        // Restore original content and re-attach listeners
-        modalCard.innerHTML = originalModalContent;
+        // --- SCENARIO 2: Download SHOULD WORK (Show Buttons) ---
+        modalCard.innerHTML = standardModalContentTemplate;
         attachDownloadListeners();
     }
 
     modal.classList.add('show');
 }
-
-// Initial listener attachment (Needed for the first time the modal is opened in a normal browser)
-attachDownloadListeners();
 
 document.getElementById('darkToggle').addEventListener('click', ()=>{
   document.body.classList.toggle('dark');
