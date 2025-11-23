@@ -698,6 +698,17 @@ function renderColors(colors, isGrouped) {
       }
     });
 
+    // ------------------------------------------------------------------
+    // NEW: Make the whole card trigger the color picker
+    card.addEventListener('click', (e) => {
+        // Only trigger if the user didn't click the HEX input (to allow editing)
+        // e.target check prevents double triggering if they click the colorInput itself
+        if (e.target !== hexInput && e.target !== colorInput) {
+            colorInput.click(); 
+        }
+    });
+    // ------------------------------------------------------------------
+    
     card.appendChild(colorInput);
     card.appendChild(hexInput);
     colorsContainer.appendChild(card);
@@ -745,7 +756,7 @@ function applyColorChange(groupObj, isGrouped, hex, shouldReload = true) {
       const arrRef = inst.ref.k || inst.ref.s;
       
       // **CRITICAL FIX**: Check if the array is directly under 'arrRef' OR nested under 'arrRef.k'
-      let arr = Array.isArray(arrRef) ? arrRef : (arrRef && arrRef.k && Array.isArray(arrRef.k) ? arrRef.k : null);
+      let arr = Array.isArray(arrRef) ? arrRef : (arrRef && arrRef.k && arrRef.k.k && Array.isArray(arrRef.k.k) ? arrRef.k.k : null);
 
       if (arr && inst.index !== undefined) {
         // Gradient color stops are stored as [position, R, G, B, position, R, G, B, ...]
