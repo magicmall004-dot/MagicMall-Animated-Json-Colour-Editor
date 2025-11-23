@@ -99,28 +99,6 @@ function debounce(func, timeout = 300){
   };
 }
 
-/* ===========================
-   Performance Fixes: Visual Update
-   =========================== */
-
-// Debounced function for applying color changes and reloading the animation
-// This is the heavy operation (full reload + history save)
-const debouncedReloadAnim = debounce(() => {
-    reloadAnim();
-    pushHistory(); // Push to history after the color change sequence is complete
-}, 250); // Set debounce delay to 250ms
-
-/**
- * Lightweight function to force Lottie to repaint the current frame.
- * This provides instant visual feedback without the performance hit of a full reload.
- */
-function refreshCurrentFrame() {
-    if (anim) {
-        // The 'true' flag forces immediate rendering, essential after data mutation
-        anim.goToAndStop(anim.currentFrame, true); 
-    }
-}
-
 
 /* ===========================
    Tab Logic
@@ -307,7 +285,6 @@ async function loadFile(file) {
   try {
     let txt;
     if (name.endsWith('.tgs')) {
-      // pako is assumed to be loaded (required for TGS)
       const buf = await file.arrayBuffer();
       const decompressed = pako.ungzip(new Uint8Array(buf), { to: 'string' });
       txt = decompressed;
@@ -681,6 +658,12 @@ function filterAndRender(filterType, activeButton) {
   renderColors(colorsToRender, groupedMode);
 }
 
+// Debounced function for applying color changes and reloading the animation
+const debouncedReloadAnim = debounce(() => {
+    reloadAnim();
+    pushHistory(); // Push to history after the color change sequence is complete
+}, 250); // Set debounce delay to 250ms
+
 function renderColors(colors, isGrouped) {
   colorsContainer.innerHTML = '';
   if (!colors || colors.length === 0) {
@@ -701,12 +684,8 @@ function renderColors(colors, isGrouped) {
     // Debounced Color Input Handler
     colorInput.addEventListener('input', () => {
       hexInput.value = colorInput.value.toUpperCase();
-      // 1. Update data immediately (no reload, no UI re-render)
-      applyColorChange(c, isGrouped, colorInput.value, false, false); 
-      // 2. Refresh the current frame immediately (LIGHTWEIGHT VISUAL UPDATE)
-      refreshCurrentFrame(); 
-      // 3. Schedule the reload and history push (HEAVY, DEBOUNCED)
-      debouncedReloadAnim(); 
+      applyColorChange(c, isGrouped, colorInput.value, false); // Update data, skip immediate reload
+      debouncedReloadAnim(); // Schedule the reload and history push
     });
     // Debounced HEX Input Handler
     hexInput.addEventListener('input', () => {
@@ -714,27 +693,21 @@ function renderColors(colors, isGrouped) {
       hexInput.value = v.toUpperCase();
       if (/^#([A-Fa-f0-9]{6})$/.test(v)) {
         colorInput.value = v;
-        // 1. Update data immediately (no reload, no UI re-render)
-        applyColorChange(c, isGrouped, v, false, false); 
-        // 2. Refresh the current frame immediately (LIGHTWEIGHT VISUAL UPDATE)
-        refreshCurrentFrame();
-        // 3. Schedule the reload and history push (HEAVY, DEBOUNCED)
-        debouncedReloadAnim(); 
+        applyColorChange(c, isGrouped, v, false); // Update data, skip immediate reload
+        debouncedReloadAnim(); // Schedule the reload and history push
       }
     });
 
-    // *** FIX: Stop click propagation on the color input (Prevents color picker from closing immediately) ***
-    colorInput.addEventListener('click', (e) => {
-        e.stopPropagation(); 
-    });
-    
-    // Make the whole card trigger the color picker
+    // ------------------------------------------------------------------
+    // NEW: Make the whole card trigger the color picker
     card.addEventListener('click', (e) => {
         // Only trigger if the user didn't click the HEX input (to allow editing)
+        // e.target check prevents double triggering if they click the colorInput itself
         if (e.target !== hexInput && e.target !== colorInput) {
             colorInput.click(); 
         }
     });
+    // ------------------------------------------------------------------
     
     card.appendChild(colorInput);
     card.appendChild(hexInput);
@@ -744,18 +717,18 @@ function renderColors(colors, isGrouped) {
 
 /**
  * Applies color change to animData without reloading the animation immediately.
- * FIX: Removed extractAndRenderColors() call to prevent lag/flicker.
+ * THIS IS THE CORE FIX TO HANDLE NESTED GRADIENTS (g.k.k).
  * @param {object} groupObj - The color reference object or single instance object.
  * @param {boolean} isGrouped - Whether the color is part of a group.
  * @param {string} hex - New HEX color string.
- * @param {boolean} [shouldReload=true] - Whether to force a reload (used by themes/initial apply).
- * @param {boolean} [shouldReRenderUI=true] - Whether to force a full UI re-render (only needed for theme apply/filter change).
+ * @param {boolean} [shouldReload=true] - Whether to force a reload (used by themes).
  */
-function applyColorChange(groupObj, isGrouped, hex, shouldReload = true, shouldReRenderUI = true) {
+function applyColorChange(groupObj, isGrouped, hex, shouldReload = true) {
   if (!animData) return;
   const { r, g, b } = hexToRgb(hex);
   const nr = r/255, ng = g/255, nb = b/255;
 
+  // If grouped, iterate over all instances; otherwise, just process the single instance.
   const instances = isGrouped ? groupObj.instances : [groupObj];
   
   instances.forEach(inst => {
@@ -763,27 +736,36 @@ function applyColorChange(groupObj, isGrouped, hex, shouldReload = true, shouldR
     
     // --- SOLID COLOR/STROKE UPDATE ---
     if (inst.type === 'solid' || inst.type === 'stroke') {
+      // 1. Check for keyframe start value (animated solid)
       if (inst.ref.hasOwnProperty('s') && Array.isArray(inst.ref.s)) {
         inst.ref.s = [nr, ng, nb, 1];
       } 
+      // 2. Check for direct array value (static solid)
       else if (inst.ref.hasOwnProperty('k') && Array.isArray(inst.ref.k)) {
         inst.ref.k = [nr, ng, nb, 1];
       } 
+      // 3. Check for nested k.k value (another static solid format)
       else if (inst.ref.k && Array.isArray(inst.ref.k.k)) { 
         inst.ref.k.k = [nr, ng, nb, 1]; 
       }
     } 
-    // --- GRADIENT UPDATE ---
+    // --- GRADIENT UPDATE (THE FIX FOR #FFE6C5) ---
     else if (inst.type === 'gradient') {
+      
+      // Determine the correct array reference. It could be 'k' (static) or 's' (animated keyframe start).
       const arrRef = inst.ref.k || inst.ref.s;
+      
+      // **CRITICAL FIX**: Check if the array is directly under 'arrRef' OR nested under 'arrRef.k'
       let arr = Array.isArray(arrRef) ? arrRef : (arrRef && arrRef.k && arrRef.k.k && Array.isArray(arrRef.k.k) ? arrRef.k.k : null);
 
       if (arr && inst.index !== undefined) {
+        // Gradient color stops are stored as [position, R, G, B, position, R, G, B, ...]
+        // inst.index is the position of the first color component (R) relative to the array start.
         const pos = inst.index; 
         if (arr.length > pos + 2) {
-          arr[pos + 1] = nr; 
-          arr[pos + 2] = ng; 
-          arr[pos + 3] = nb; 
+          arr[pos + 1] = nr; // R is at pos + 1
+          arr[pos + 2] = ng; // G is at pos + 2
+          arr[pos + 3] = nb; // B is at pos + 3
         }
       }
     }
@@ -791,12 +773,10 @@ function applyColorChange(groupObj, isGrouped, hex, shouldReload = true, shouldR
 
   if (isGrouped) groupObj.hex = hex;
   
-  // *** PERFORMANCE FIX: Only re-render UI if explicitly requested (e.g., theme change, not individual input) ***
-  if (shouldReRenderUI) {
-      extractAndRenderColors(); // This calls filterAndRender which refreshes the UI
-  }
+  // Re-extract and re-render colors to update the UI list
+  extractAndRenderColors(); 
   
-  // Reload the animation to show the change (used by themes/undo/redo, NOT by debounced input)
+  // Reload the animation to show the change
   if (shouldReload) reloadAnim();
 }
 
@@ -932,8 +912,7 @@ function applyTheme(theme) {
             const newHex = themeColor.hex;
             
             // Apply the new color to the instance references in animData
-            // ApplyChange will trigger a full UI re-render and reload at the end (shouldReRenderUI=true is default)
-            applyColorChange(currentGroupObj, true, newHex, false, false); 
+            applyColorChange(currentGroupObj, true, newHex, false);
             
             // Immediately update the groupedColors hex cache for subsequent passes
             currentGroupObj.hex = newHex;
