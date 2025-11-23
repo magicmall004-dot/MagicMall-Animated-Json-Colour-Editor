@@ -118,7 +118,6 @@ button.primary:hover { background: var(--primary-dark); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .danger-btn { color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
-/* UPDATED: Use a surface variable for hover */
 .danger-btn:hover { background: var(--surface-border); } 
 .dark .danger-btn:hover { background: rgba(239, 68, 68, 0.05); } 
 
@@ -205,13 +204,11 @@ main {
 
 .controls-bar {
   width: 100%; max-width: 500px;
-  /* UPDATED: Use a slightly more transparent background */
   background: rgba(0,0,0,0.05); 
   padding: 12px; border-radius: 12px;
   display: flex; flex-direction: column; gap: 10px;
 }
 .dark .controls-bar {
-  /* UPDATED: Dark mode override */
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -223,7 +220,6 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 .filters-row { display: flex; flex-direction: column; gap: 10px; }
 .filter-pills { 
   display: flex; gap: 4px; 
-  /* UPDATED: Use a slightly more transparent background */
   background: rgba(0,0,0,0.05); 
   padding: 4px; border-radius: 10px;
   overflow-x: auto; white-space: nowrap; 
@@ -231,7 +227,6 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
   -ms-overflow-style: none; 
 }
 .dark .filter-pills {
-  /* UPDATED: Dark mode override */
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -293,9 +288,32 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 }
 .dark .color-card { background: rgba(255,255,255,0.03); }
 
+/* --- FIX: Make the color input blend with the card (single shape) --- */
 .color-card input[type=color] {
-  width: 32px; height: 32px; border-radius: 8px; border: none; padding: 0; flex-shrink: 0; cursor: pointer;
+  width: 32px; height: 32px; 
+  border-radius: 8px; 
+  flex-shrink: 0; cursor: pointer;
+  
+  /* Remove the browser's default square UI */
+  -webkit-appearance: none; 
+  -moz-appearance: none;
+  appearance: none;
+  
+  /* Remove all default styling */
+  border: none; 
+  padding: 0; 
+  
+  /* Use transparent background so the color value shows through */
+  background-color: transparent; 
+  
+  /* Add a subtle inner shadow/border to give the color swatch definition */
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1) inset;
 }
+.dark .color-card input[type=color] {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.1) inset;
+}
+/* ------------------------------------------------------------------- */
+
 .hexInput {
   width: 100%; background: transparent; border: none; font-family: monospace; color: var(--text); font-size: 12px;
 }
