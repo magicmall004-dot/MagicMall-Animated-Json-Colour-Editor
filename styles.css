@@ -118,7 +118,9 @@ button.primary:hover { background: var(--primary-dark); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .danger-btn { color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
-.danger-btn:hover { background: #fef2f2; }
+/* UPDATED: Use a surface variable for hover */
+.danger-btn:hover { background: var(--surface-border); } 
+.dark .danger-btn:hover { background: rgba(239, 68, 68, 0.05); } 
 
 input[type="file"] { display: none; }
 
@@ -203,9 +205,16 @@ main {
 
 .controls-bar {
   width: 100%; max-width: 500px;
-  background: rgba(0,0,0,0.03); padding: 12px; border-radius: 12px;
+  /* UPDATED: Use a slightly more transparent background */
+  background: rgba(0,0,0,0.05); 
+  padding: 12px; border-radius: 12px;
   display: flex; flex-direction: column; gap: 10px;
 }
+.dark .controls-bar {
+  /* UPDATED: Dark mode override */
+  background: rgba(255, 255, 255, 0.05);
+}
+
 
 .timeline { display: flex; align-items: center; gap: 10px; }
 input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); height: 4px; }
@@ -214,11 +223,18 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 .filters-row { display: flex; flex-direction: column; gap: 10px; }
 .filter-pills { 
   display: flex; gap: 4px; 
-  background: rgba(0,0,0,0.05); padding: 4px; border-radius: 10px;
+  /* UPDATED: Use a slightly more transparent background */
+  background: rgba(0,0,0,0.05); 
+  padding: 4px; border-radius: 10px;
   overflow-x: auto; white-space: nowrap; 
   scrollbar-width: none; 
   -ms-overflow-style: none; 
 }
+.dark .filter-pills {
+  /* UPDATED: Dark mode override */
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .filter-pills::-webkit-scrollbar { display: none; }
 
 .filter-btn {
