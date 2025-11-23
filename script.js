@@ -285,6 +285,7 @@ async function loadFile(file) {
   try {
     let txt;
     if (name.endsWith('.tgs')) {
+      // pako is assumed to be loaded (required for TGS)
       const buf = await file.arrayBuffer();
       const decompressed = pako.ungzip(new Uint8Array(buf), { to: 'string' });
       txt = decompressed;
@@ -698,8 +699,14 @@ function renderColors(colors, isGrouped) {
       }
     });
 
-    // ------------------------------------------------------------------
-    // NEW: Make the whole card trigger the color picker
+    // *** FIX: Stop click propagation on the color input ***
+    colorInput.addEventListener('click', (e) => {
+        // Prevents the click from reaching the parent 'card' handler
+        // which could interfere with the native color picker dialog.
+        e.stopPropagation(); 
+    });
+    
+    // Make the whole card trigger the color picker
     card.addEventListener('click', (e) => {
         // Only trigger if the user didn't click the HEX input (to allow editing)
         // e.target check prevents double triggering if they click the colorInput itself
@@ -707,7 +714,6 @@ function renderColors(colors, isGrouped) {
             colorInput.click(); 
         }
     });
-    // ------------------------------------------------------------------
     
     card.appendChild(colorInput);
     card.appendChild(hexInput);
