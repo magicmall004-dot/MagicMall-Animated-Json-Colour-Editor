@@ -357,7 +357,7 @@ function initLoader() {
         renderer: 'svg',
         loop: true,
         autoplay: true,
-        path: 'M logo animation.json' // Custom JSON file name for loading indicator
+        path: 'M_logo_animation.json' // Custom JSON file name for loading indicator
     });
 }
 initLoader(); 
