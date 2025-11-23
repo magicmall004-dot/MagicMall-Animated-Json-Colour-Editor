@@ -99,6 +99,28 @@ function debounce(func, timeout = 300){
   };
 }
 
+/* ===========================
+   Performance Fixes: Visual Update
+   =========================== */
+
+// Debounced function for applying color changes and reloading the animation
+// This is the heavy operation (full reload + history save)
+const debouncedReloadAnim = debounce(() => {
+    reloadAnim();
+    pushHistory(); // Push to history after the color change sequence is complete
+}, 250); // Set debounce delay to 250ms
+
+/**
+ * Lightweight function to force Lottie to repaint the current frame.
+ * This provides instant visual feedback without the performance hit of a full reload.
+ */
+function refreshCurrentFrame() {
+    if (anim) {
+        // The 'true' flag forces immediate rendering, essential after data mutation
+        anim.goToAndStop(anim.currentFrame, true); 
+    }
+}
+
 
 /* ===========================
    Tab Logic
@@ -659,12 +681,6 @@ function filterAndRender(filterType, activeButton) {
   renderColors(colorsToRender, groupedMode);
 }
 
-// Debounced function for applying color changes and reloading the animation
-const debouncedReloadAnim = debounce(() => {
-    reloadAnim();
-    pushHistory(); // Push to history after the color change sequence is complete
-}, 250); // Set debounce delay to 250ms
-
 function renderColors(colors, isGrouped) {
   colorsContainer.innerHTML = '';
   if (!colors || colors.length === 0) {
@@ -685,9 +701,12 @@ function renderColors(colors, isGrouped) {
     // Debounced Color Input Handler
     colorInput.addEventListener('input', () => {
       hexInput.value = colorInput.value.toUpperCase();
-      // Update data, skip immediate reload and skip full UI re-render
+      // 1. Update data immediately (no reload, no UI re-render)
       applyColorChange(c, isGrouped, colorInput.value, false, false); 
-      debouncedReloadAnim(); // Schedule the reload and history push
+      // 2. Refresh the current frame immediately (LIGHTWEIGHT VISUAL UPDATE)
+      refreshCurrentFrame(); 
+      // 3. Schedule the reload and history push (HEAVY, DEBOUNCED)
+      debouncedReloadAnim(); 
     });
     // Debounced HEX Input Handler
     hexInput.addEventListener('input', () => {
@@ -695,9 +714,12 @@ function renderColors(colors, isGrouped) {
       hexInput.value = v.toUpperCase();
       if (/^#([A-Fa-f0-9]{6})$/.test(v)) {
         colorInput.value = v;
-        // Update data, skip immediate reload and skip full UI re-render
+        // 1. Update data immediately (no reload, no UI re-render)
         applyColorChange(c, isGrouped, v, false, false); 
-        debouncedReloadAnim(); // Schedule the reload and history push
+        // 2. Refresh the current frame immediately (LIGHTWEIGHT VISUAL UPDATE)
+        refreshCurrentFrame();
+        // 3. Schedule the reload and history push (HEAVY, DEBOUNCED)
+        debouncedReloadAnim(); 
       }
     });
 
@@ -771,10 +793,10 @@ function applyColorChange(groupObj, isGrouped, hex, shouldReload = true, shouldR
   
   // *** PERFORMANCE FIX: Only re-render UI if explicitly requested (e.g., theme change, not individual input) ***
   if (shouldReRenderUI) {
-      extractAndRenderColors(); // This re-extracts colors and re-renders the list
+      extractAndRenderColors(); // This calls filterAndRender which refreshes the UI
   }
   
-  // Reload the animation to show the change
+  // Reload the animation to show the change (used by themes/undo/redo, NOT by debounced input)
   if (shouldReload) reloadAnim();
 }
 
@@ -910,7 +932,7 @@ function applyTheme(theme) {
             const newHex = themeColor.hex;
             
             // Apply the new color to the instance references in animData
-            // Pass true for shouldReRenderUI to force the color list to refresh after the loop
+            // ApplyChange will trigger a full UI re-render and reload at the end (shouldReRenderUI=true is default)
             applyColorChange(currentGroupObj, true, newHex, false, false); 
             
             // Immediately update the groupedColors hex cache for subsequent passes
