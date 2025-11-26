@@ -1,11 +1,10 @@
-
 :root {
   --primary: #0b84ff;
   --primary-dark: #0060c0;
   --danger: #ef4444;
   --bg-gradient: linear-gradient(135deg, #f0f6ff 0%, #ffffff 100%);
   --surface: rgba(255, 255, 255, 0.65);
-  --surface-light: rgba(255, 255, 255, 0.85); /* Slightly lighter background for elements */
+  --surface-light: rgba(255, 255, 255, 0.85);
   --surface-border: rgba(255, 255, 255, 0.4);
   --text: #1e293b;
   --text-muted: #64748b;
@@ -46,7 +45,6 @@ body {
   min-height: 100vh;
 }
 
-/* --- DRAG OVERLAY CSS --- */
 #dropOverlay {
   position: fixed; inset: 0; background: rgba(11, 132, 255, 0.9); z-index: 200;
   display: none; flex-direction: column; align-items: center; justify-content: center;
@@ -71,7 +69,6 @@ header {
 .brand span { background: var(--primary); color: white; padding: 2px 6px; border-radius: 6px; font-size: 12px; }
 .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-/* Buttons */
 button, .btn-label {
   padding: 8px 14px; border-radius: 10px; border: none;
   background: var(--surface); border: 1px solid var(--surface-border);
@@ -116,11 +113,10 @@ input[type="file"] { display: none; }
 
 main {
   flex: 1; display: grid;
-  grid-template-columns: 1fr 380px; /* PC Layout */
+  grid-template-columns: 1fr 380px;
   gap: 16px; overflow: hidden;
 }
 
-/* Card Style - GRADIENT BORDER */
 .card {
   background: var(--surface);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -201,7 +197,6 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 
 .editor-section { display: flex; flex-direction: column; padding: 0; }
 
-/* Custom Scrollbars for Content */
 .tab-content::-webkit-scrollbar { width: 6px; height: 6px; }
 .tab-content::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
 .dark .tab-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); }
@@ -221,7 +216,6 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 
 .color-group-badge {
     position: absolute;
-    /* Position the badge in the top-right corner of the card's inner padding area */
     top: 5px; 
     right: 5px;
     background: var(--primary);
@@ -229,13 +223,13 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
     font-size: 10px;
     font-weight: 600;
     padding: 2px 6px;
-    border-radius: 6px; /* Soft round corners */
+    border-radius: 6px;
     display: flex;
     align-items: center;
     gap: 3px;
     pointer-events: none; 
     z-index: 10;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2); /* Small shadow to lift it */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
 .dark .color-group-badge {
@@ -243,7 +237,7 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 }
 
 .color-group-badge i {
-    font-size: 10px; /* Use ri-stack-fill which you included via remixicon */
+    font-size: 10px;
 }
 
 
@@ -253,7 +247,6 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
     gap: 10px; 
 }
 .color-card {
-    /* Vertical flex layout */
     background: var(--surface-light); 
     border: 1px solid var(--surface-border);
     border-radius: var(--radius); 
@@ -292,7 +285,7 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
     flex-shrink: 0; 
     
     
-    padding: 4px; /* The padding you requested, now applied to the input container itself */
+    padding: 4px;
     background: var(--surface); 
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.1), 0 0 0 1px var(--surface-border);
 }
@@ -305,11 +298,11 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 
 .color-card input[type="color"]::-webkit-color-swatch-wrapper {
     padding: 0;
-    margin: 0; /* Remove default margin that might be there */
+    margin: 0;
 }
 .color-card input[type="color"]::-webkit-color-swatch {
-    border-radius: 4px; /* Match the outer radius minus the padding */
-    border: none; /* Remove the default border inside the swatch */
+    border-radius: 4px;
+    border: none;
 }
 .color-card input[type="color"]::-moz-color-swatch {
     border-radius: 4px;
