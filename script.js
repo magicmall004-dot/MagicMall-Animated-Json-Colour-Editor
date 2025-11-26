@@ -88,6 +88,18 @@ let currentFilter = "All";
 let playerState = { isPaused: true, currentFrame: 0 };
 
 
+/* ===========================
+   Debounced Reload & History
+   =========================== */
+function _reloadAndPush() {
+    pushHistory(); // Save the state after the color change is complete
+    reloadAnim();  // Reload the Lottie player with the updated animData
+}
+
+// Debounce the heavy operation (reloading Lottie and pushing history)
+const debouncedReloadAnim = debounce(_reloadAndPush, 200);
+
+
 // ===========================
 // Utility: Debouncing function
 // ===========================
@@ -502,7 +514,7 @@ document.getElementById('applySettings').addEventListener('click', () => {
 
   if (needsReload) {
     reloadAnim(); 
-    totalLabel.textContent = Math.round(anim.totalFrames);
+    // totalFrames calculation is handled inside loadLottie DOMLoaded event
   }
   
   setModal.classList.remove('show');
@@ -671,9 +683,6 @@ function filterAndRender(filterType, activeButton) {
   renderColors(colorsToRender, groupedMode);
 }
 
-// Debounced function for applying color changes and reloading the animation
-// ... existing code ...
-
 function renderColors(colors, isGrouped) {
   colorsContainer.innerHTML = '';
   if (!colors || colors.length === 0) {
@@ -689,21 +698,20 @@ function renderColors(colors, isGrouped) {
     if (isGrouped) {
       hexVal = c.hex;
     } else {
+      // NOTE: The hex value here is just for display/initial state
       hexVal = c.hex || (c.ref && (c.ref.k ? (Array.isArray(c.ref.k) ? rgbaToHex(c.ref.k) : (c.ref.s ? rgbaToHex(c.ref.s) : '#000')) : '#000000'));
     }
     colorInput.value = hexVal;
 
     const hexInput = document.createElement('input'); hexInput.className = 'hexInput'; hexInput.value = hexVal.toUpperCase();
 
-    // ------------------------------------------------------------------
     // NEW: Layer Grouping Badge (Only show if grouped and count > 1)
     if (isGrouped && c.layerCount > 1) {
         const badge = document.createElement('div');
         badge.className = 'color-group-badge';
-        badge.innerHTML = `<i class="ri-stack-fill"></i> <span>${c.layerCount}</span>`; // Using 'ri-stack-fill' from Remix Icon
+        badge.innerHTML = `<i class="ri-stack-fill"></i> <span>${c.layerCount}</span>`; 
         card.appendChild(badge);
     }
-    // ------------------------------------------------------------------
     
     // Debounced Color Input Handler
     colorInput.addEventListener('input', () => {
@@ -737,7 +745,6 @@ function renderColors(colors, isGrouped) {
 
 /**
  * Applies color change to animData without reloading the animation immediately.
- * THIS IS THE CORE FIX TO HANDLE NESTED GRADIENTS (g.k.k).
  * @param {object} groupObj - The color reference object or single instance object.
  * @param {boolean} isGrouped - Whether the color is part of a group.
  * @param {string} hex - New HEX color string.
@@ -769,18 +776,17 @@ function applyColorChange(groupObj, isGrouped, hex, shouldReload = true) {
         inst.ref.k.k = [nr, ng, nb, 1]; 
       }
     } 
-    // --- GRADIENT UPDATE (THE FIX FOR #FFE6C5) ---
+    // --- GRADIENT UPDATE ---
     else if (inst.type === 'gradient') {
       
       // Determine the correct array reference. It could be 'k' (static) or 's' (animated keyframe start).
       const arrRef = inst.ref.k || inst.ref.s;
       
-      // **CRITICAL FIX**: Check if the array is directly under 'arrRef' OR nested under 'arrRef.k'
-      let arr = Array.isArray(arrRef) ? arrRef : (arrRef && arrRef.k && arrRef.k.k && Array.isArray(arrRef.k.k) ? arrRef.k.k : null);
+      // CRITICAL FIX: Check if the array is directly under 'arrRef' OR nested under 'arrRef.k'
+      let arr = Array.isArray(arrRef) ? arrRef : (arrRef && arrRef.k && Array.isArray(arrRef.k.k) ? arrRef.k.k : null);
 
       if (arr && inst.index !== undefined) {
         // Gradient color stops are stored as [position, R, G, B, position, R, G, B, ...]
-        // inst.index is the position of the first color component (R) relative to the array start.
         const pos = inst.index; 
         if (arr.length > pos + 2) {
           arr[pos + 1] = nr; // R is at pos + 1
@@ -796,7 +802,7 @@ function applyColorChange(groupObj, isGrouped, hex, shouldReload = true) {
   // Re-extract and re-render colors to update the UI list
   extractAndRenderColors(); 
   
-  // Reload the animation to show the change
+  // Reload the animation to show the change (used mainly by themes to force reload)
   if (shouldReload) reloadAnim();
 }
 
