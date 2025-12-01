@@ -44,7 +44,7 @@
   </header>
   
   <div id="browserWarning" style="background-color: #fff3cd; color: #856404; padding: 10px 20px; text-align: center; border-radius: 8px; margin: 0 12px; font-size: 13px; display: none; border: 1px solid #ffeeba;">
-      ⚠️ **Warning!** Downloads are **blocked** in this app. Please use the menu (•••) > **Open in Browser** to save your files.
+      ⚠️ သတိပေးချက်!  ဒီ browserမှာ Downloadလုပ်လို့မရပါ။ အပေါ်က (•••) ကိုနှိပ်ပြီး အခြား Browserကနေဖွင့်ပါ။
   </div>
   
   <main>
@@ -52,7 +52,7 @@
       
       <div id="loadingIndicator" style="position: absolute; inset: 0; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(5px); z-index: 50; display: none; align-items: center; justify-content: center; flex-direction: column;">
           <div id="loaderAnim" style="width: 100px; height: 100px;"></div>
-          <p style="color: var(--primary); font-weight: 600; margin-top: 10px;">Loading Animation...</p>
+          <p style="color: var(--primary); font-weight: 600; margin-top: 10px;">Loading လုပ်နေပါတယ်...</p>
       </div>
       <div class="canvas-container">
         <div id="preview-placeholder" style="color:var(--text-muted);text-align:center; position:absolute;">
@@ -102,9 +102,9 @@
       </div>
       
       <div id="tab-themes" class="tab-content">
-          <button id="saveThemeBtn" class="primary" style="width:100%; margin-bottom:15px;"><i class="ri-save-line"></i> Save Current Colors as Theme</button>
+          <button id="saveThemeBtn" class="primary" style="width:100%; margin-bottom:15px;"><i class="ri-save-line"></i>ယခုColorsကိုTheme အနေဖြင့်saveမည်။</button>
           <div id="themesList">
-              <p style="color:var(--text-muted); font-size:13px; text-align:center;">No themes saved yet.</p>
+              <p style="color:var(--text-muted); font-size:13px; text-align:center;">Saveထားသော Themes မရှိပါ</p>
           </div>
       </div>
       
@@ -123,13 +123,13 @@
   
   <div id="tgs-scan-modal" class="modal" aria-hidden="true">
     <div class="modalCard">
-        <h3 style="margin-top:0"><i class="ri-telegram-line"></i> TGS Compatibility Scan</h3>
-        <p class="muted" style="margin-top:-10px; font-size:13px;">Checking against Telegram's technical requirements.</p>
+        <h3 style="margin-top:0"><i class="ri-telegram-line"></i> Telegram Stickerစစ်ဆေးခြင်း</h3>
+        <p class="muted" style="margin-top:-10px; font-size:13px;">Telegram ၏ sticker လိုအပ်ချက်များနှင့်ကိုက်ညီမှု့ရှိမရှိစစ်ဆေးနေပါတယ်။</p>
         <div id="tgs-results"></div>
-        <p class="muted" style="font-size:11px; margin-top:15px;">**Note:** This tool cannot check the **64 KB file size** limit.</p>
+        <p class="muted" style="font-size:11px; margin-top:15px;">သတိ ပေးချက် Sticker File Size 64 KB ထက်ကြီးမကြီးမစစ်ဆေးနိုင်သောကြောင့် ကိုယ့်ဘာသာကြည့်ပါ☺️။</p>
         <div class="modal-btn-row">
             <button class="primary modal-close" style="background:#2AABEE; border:none;">
-                Go to Export
+                Exportထုတ်မည်
             </button>
             <button class="ghost modal-close" style="color:var(--text-muted); border-color:var(--surface-border)">
                 Close
