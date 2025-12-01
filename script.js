@@ -246,11 +246,11 @@ function checkTgsCompatibility() {
     let finalMessage = '';
     if (overallPass) {
         finalMessage = `<div style="text-align:center; padding:15px; margin-top:10px; border-radius:10px; background:#e0f7e0; color:#10b981; font-weight:700;">
-                            <i class="ri-thumb-up-line"></i> **PASS!** Your settings meet the main TGS requirements.
+                            <i class="ri-thumb-up-line"></i> အောင်မြင်ပါတယ်🎉 Telegram Stickerလိုအပ်ချက်များနှင့်ကိုက်ညီမှု့ရှိပါတယ်။
                         </div>`;
     } else {
          finalMessage = `<div style="text-align:center; padding:15px; margin-top:10px; border-radius:10px; background:#fee2e2; color:#ef4444; font-weight:700;">
-                            <i class="ri-error-warning-line"></i> **FAIL!** Adjust settings before export (go to Settings).
+                            <i class="ri-error-warning-line"></i> မအောင်မြင်ပါ😢 ကိုက်ညီအောင်exportမထုတ်ခင်settingsသို့သွားပြီးပြင်ပါ။  
                         </div>`;
     }
 
