@@ -1094,8 +1094,8 @@ document.getElementById('exportMenuBtn').onclick = () => {
                 To save your work:
             </p>
             <ol style="padding-left: 20px; margin:0; font-size:13px;">
-                <li>အပေါ်က (•••) ကိုနှိပ်ပြီး အခြား Browserကနေဖွင့်ပါ။</li>
-                <li>Select "Open in Browser" ကိုနှိပ်ပြီး(Chrome/Safari/Google)တို့ကနေဖွင့်ပါ။.</li>
+                <li>အပေါ်က(•••)ကိုနှိပ်ပြီးအခြား Browserကနေဖွင့်ပါ။</li>
+                <li>"Open in Browser" ကိုနှိပ်ပြီး(Chrome/Safari/Google)တို့ကနေဖွင့်ပါ။.</li>
                 <li>Browserကနေဖွင့်မှသာ File download လုပ်နိုင်ပါလိမ့်မယ်။</li>
             </ol>
             <div class="modal-btn-row" style="margin-top:20px;">
