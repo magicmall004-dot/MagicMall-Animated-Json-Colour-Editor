@@ -1086,17 +1086,17 @@ document.getElementById('exportMenuBtn').onclick = () => {
             <div style="text-align:center; margin-bottom:16px;">
                 <i class="ri-alert-line" style="font-size:32px; color:#ffc107;"></i>
             </div>
-            <h3 style="margin:0 0 8px 0; font-size:18px;">Action Required: Download Blocked</h3>
+            <h3 style="margin:0 0 8px 0; font-size:18px;">ဤBrowserတွင်Downloadလုပ်လို့မရပါ။
             <p class="muted" style="margin:0; font-size:13px; line-height:1.5;">
-                Due to security restrictions in this Telegram window, direct file downloads are disabled.
+                security အရဤ Browser တွင် file တိုက်ရိုက် download လုပ်ခွင့်ပိတ်ထားသောကြောင့်မရပါ။.
             </p>
             <p style="font-weight:600; font-size:14px; margin:15px 0 5px 0;">
                 To save your work:
             </p>
             <ol style="padding-left: 20px; margin:0; font-size:13px;">
-                <li>Tap the **three dots** (•••) or **share icon** in the corner.</li>
-                <li>Select **"Open in Browser"** (Chrome/Safari/Google).</li>
-                <li>Return to the external browser window to use the download buttons.</li>
+                <li>အပေါ်က (•••) ကိုနှိပ်ပြီး အခြား Browserကနေဖွင့်ပါ။</li>
+                <li>Select "Open in Browser" ကိုနှိပ်ပြီး(Chrome/Safari/Google)တို့ကနေဖွင့်ပါ။.</li>
+                <li>Browserကနေဖွင့်မှသာ File download လုပ်နိုင်ပါလိမ့်မယ်။</li>
             </ol>
             <div class="modal-btn-row" style="margin-top:20px;">
                 <button class="ghost modal-close" style="color:var(--text-muted); border-color:var(--surface-border)">
