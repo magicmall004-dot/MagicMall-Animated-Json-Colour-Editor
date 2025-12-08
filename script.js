@@ -47,7 +47,7 @@ const standardModalContentTemplate = `
         <i class="ri-download-cloud-2-line" style="font-size:32px; color:var(--primary)"></i>
     </div>
     <h3 style="margin:0 0 8px 0; font-size:18px;">Export Animation</h3>
-    <p class="muted" style="margin:0; font-size:13px; line-height:1.5;">Choose your preferred format to download the modified animation.</p>
+    <p class="muted" style="margin:0; font-size:13px; line-height:1.5;">ကြိုက်ရာfile အားdownloadဆွဲပါ။</p>
 
     <p id="browser-warning-text" style="
         font-size:14px; 
@@ -57,7 +57,7 @@ const standardModalContentTemplate = `
         margin:15px 0 10px 0;
         animation: pulse 1.5s infinite;
     ">
-        <i class="ri-alert-line"></i> **If download is blocked**, tap (•••) > **Open in Browser** (Chrome/Safari) to save.
+        <i class="ri-alert-line"></i>အကယ်၍ File download လုပ်လို့မရပါကအပေါ်က(•••)ကိုနှိပ်ပြီးအခြား Browserကနေဖွင့်ပါ။ >Chrome/Safari စသောပြင်ပ browser များမှဖွင့်သုံးမှသာ File download လုပ်နိုင်မှာပါ။
     </p>
     <style>
         @keyframes pulse {
