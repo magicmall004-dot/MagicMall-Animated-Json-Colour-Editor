@@ -11,6 +11,9 @@
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
   --radius: 16px;
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Telegram Button variables */
+  --shine-color: #ffffff; 
+  --bg-color: #0b84ff; 
 }
 
 .dark {
@@ -23,6 +26,7 @@
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
+/* --- Base/Reset Styles --- */
 * { 
     box-sizing: border-box; 
     -webkit-tap-highlight-color: transparent; 
@@ -45,6 +49,7 @@ body {
   min-height: 100vh;
 }
 
+/* --- Drop Overlay (for file drag/drop) --- */
 #dropOverlay {
   position: fixed; inset: 0; background: rgba(11, 132, 255, 0.9); z-index: 200;
   display: none; flex-direction: column; align-items: center; justify-content: center;
@@ -53,7 +58,7 @@ body {
 }
 .dragging #dropOverlay { display: flex; pointer-events: auto; opacity: 1; }
 
-
+/* --- Header & Branding --- */
 header {
   display: flex; justify-content: space-between; align-items: center;
   padding: 8px 4px; flex-wrap: wrap; gap: 10px;
@@ -69,6 +74,7 @@ header {
 .brand span { background: var(--primary); color: white; padding: 2px 6px; border-radius: 6px; font-size: 12px; }
 .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
+/* --- Buttons & Inputs --- */
 button, .btn-label {
   padding: 8px 14px; border-radius: 10px; border: none;
   background: var(--surface); border: 1px solid var(--surface-border);
@@ -91,7 +97,84 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 input[type="file"] { display: none; }
 
+/* --- NEW: Telegram Button - Continuous Orbiting Light Effect --- */
+.animated-btn {
+    position: relative;
+    overflow: hidden; 
+    z-index: 1; 
+    
+    background: var(--bg-color);
+    color: white;
+    border: none; 
+    box-shadow: 0 4px 15px rgba(11, 132, 255, 0.4); 
+    transition: background-color 0.3s, transform 0.2s;
+}
 
+/* 1. THE CONTINUOUS, ORBITING LIGHT EFFECT (::after) - ALWAYS ON */
+.animated-btn::after {
+    content: '';
+    position: absolute;
+    inset: -5px; 
+    
+    background: conic-gradient(
+        transparent 0deg, 
+        transparent 180deg, 
+        var(--shine-color) 180deg, 
+        var(--shine-color) 190deg, 
+        transparent 190deg
+    );
+    
+    background-size: 100% 100%;
+    
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    
+    border-radius: 14px; 
+    
+    animation: rotate-light 4s linear infinite;
+    z-index: -1; 
+    opacity: 0.8; 
+}
+
+@keyframes rotate-light {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 2. THE RIPPLE EFFECT (::before) - ONLY ON HOVER/CLICK */
+.animated-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.7) 0%, transparent 70%);
+    opacity: 0;
+    transform: scale(0);
+    transition: none; 
+    pointer-events: none;
+    z-index: 2; 
+}
+
+.animated-btn:hover {
+    box-shadow: 0 0 20px rgba(11, 132, 255, 0.8), 0 0 30px rgba(11, 132, 255, 0.6);
+    transform: translateY(-2px);
+}
+
+.animated-btn:hover::before {
+    animation: ripple 0.8s ease-out;
+}
+
+@keyframes ripple {
+    0% { transform: scale(0); opacity: 0.8; }
+    100% { transform: scale(2.5); opacity: 0; }
+}
+/* --- END NEW: Telegram Button Animation/Lighting --- */
+
+
+/* --- Browser Warning --- */
 #browserWarning {
   background-color: #fff3cd; 
   color: #856404; 
@@ -109,14 +192,14 @@ input[type="file"] { display: none; }
     border: 1px solid #ffd700;
 }
 
-
-
+/* --- Main Layout Grid (Desktop) --- */
 main {
   flex: 1; display: grid;
   grid-template-columns: 1fr 380px;
   gap: 16px; overflow: hidden;
 }
 
+/* --- Card Base Style --- */
 .card {
   background: var(--surface);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -134,6 +217,7 @@ main {
     border-radius: var(--radius);
     padding: 1px; 
     background: linear-gradient(135deg, rgba(11, 132, 255, 0.4) 0%, rgba(255, 255, 255, 0.1) 100%);
+    /* Creates a border effect by using masks */
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -144,7 +228,7 @@ main {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(11, 132, 255, 0.3) 100%);
 }
 
-
+/* --- Preview Section (Left Column) --- */
 .preview-section {
   display: flex; flex-direction: column; gap: 16px;
   padding: 20px; align-items: center; justify-content: center;
@@ -153,6 +237,7 @@ main {
 
 .canvas-container {
   width: 100%; max-width: 500px; aspect-ratio: 1;
+  /* Checkerboard background for transparency */
   background: repeating-conic-gradient(#80808015 0% 25%, transparent 0% 50%) 50% / 20px 20px;
   border-radius: 12px; border: 1px solid var(--surface-border);
   display: flex; align-items: center; justify-content: center;
@@ -164,6 +249,7 @@ main {
     transition: transform 0.3s ease; 
 }
 
+/* Controls Bar (under animation) */
 .controls-bar {
   width: 100%; max-width: 500px;
   background: rgba(0,0,0,0.05); 
@@ -175,17 +261,17 @@ main {
 .timeline { display: flex; align-items: center; gap: 10px; }
 input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); height: 4px; }
 
-
+/* Filter Pills */
 .filters-row { display: flex; flex-direction: column; gap: 10px; }
 .filter-pills { 
   display: flex; gap: 4px; 
   background: rgba(0,0,0,0.05); 
   padding: 4px; border-radius: 10px;
   overflow-x: auto; white-space: nowrap; 
-  scrollbar-width: none; -ms-overflow-style: none; 
+  scrollbar-width: none; -ms-overflow-style: none; /* Hide scrollbar for IE/Edge/Firefox */
 }
 .dark .filter-pills { background: rgba(255, 255, 255, 0.05); }
-.filter-pills::-webkit-scrollbar { display: none; }
+.filter-pills::-webkit-scrollbar { display: none; } /* Hide scrollbar for Chrome/Safari/Opera */
 
 .filter-btn {
   padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border:none; background: transparent; color: var(--text-muted);
@@ -194,9 +280,10 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 .filter-btn.active { background: var(--surface); color: var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); font-weight: 600; }
 .dark .filter-btn.active { background: #334155; color: #fff; }
 
-
+/* --- Editor Section (Right Column) --- */
 .editor-section { display: flex; flex-direction: column; padding: 0; }
 
+/* Tab Navigation */
 .tab-content::-webkit-scrollbar { width: 6px; height: 6px; }
 .tab-content::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
 .dark .tab-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); }
@@ -212,8 +299,7 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 .tab-content { flex: 1; overflow-y: auto; padding: 16px; display: none; }
 .tab-content.active { display: block; }
 
-
-
+/* --- Color & Gradient Editor --- */
 .color-group-badge {
     position: absolute;
     top: 5px; 
@@ -240,7 +326,85 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
     font-size: 10px;
 }
 
+/* Gradient Editor UI */
+#gradientBar {
+  background: linear-gradient(90deg,#fff,#fff); /* Placeholder, updated by JS */
+  border-radius: 10px;
+  position: relative;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.06);
+}
 
+/* Visual stop (pin) */
+.gradient-stop {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%,-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+  cursor: grab;
+  transition: transform .12s ease;
+}
+.gradient-stop:active { cursor:grabbing; transform: translate(-50%,-50%) scale(1.06); }
+
+/* active stop indicator */
+.gradient-stop.active {
+  box-shadow: 0 6px 18px rgba(11,132,255,0.28);
+  border-color: var(--primary);
+}
+
+/* stop selector in list */
+.gradient-stop-row {
+  display:flex; gap:8px; align-items:center; background:var(--surface-light); border-radius:8px; padding:8px; border:1px solid var(--surface-border);
+}
+
+/* New element wrappers (crucial for mobile stacking) */
+.swatch-and-delete {
+    display: flex;
+    align-items: center;
+}
+.slider-track-wrap {
+    flex: 1; /* Ensure it takes up space in the horizontal layout (desktop) */
+}
+.gradient-color-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+
+.gradient-stop-swatch {
+  width:36px; height:36px; border-radius:8px; border:1px solid rgba(0,0,0,0.06);
+  flex-shrink:0;
+}
+.gradient-stop-controls { flex:1; display:flex; gap:8px; align-items:center; }
+
+/* small color input styles */
+.gradient-stop-controls input[type="color"] { width:44px; height:34px; padding:0; border-radius:6px; border:none; background:var(--surface); }
+.gradient-stop-controls input[type="range"] { width:100%; }
+
+/* --- UNIVERSAL FIX FOR DELETE BUTTON (Applied to gradient stops) --- */
+.gradient-stop-row .danger-btn {
+    padding: 8px; 
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    justify-content: center;
+    margin-left: 8px; 
+}
+/* Ensure the trash icon is the only visible element */
+.gradient-stop-row .danger-btn span {
+    display: none; 
+}
+.gradient-stop-row .danger-btn i {
+    display: block; 
+    font-size: 16px;
+    margin: 0; 
+}
+
+/* Color Cards Grid */
 #colors { 
     display: grid; 
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); 
@@ -270,7 +434,7 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
     box-shadow: 0 0 0 3px var(--primary) !important;
 }
 
-
+/* Color Picker Input */
 .color-card input[type="color"] {
     -webkit-appearance: none;
     -moz-appearance: none;
@@ -323,7 +487,7 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 }
 .dark .hexInput { background-color: rgba(0,0,0,0.2); }
 
-
+/* Layers Panel */
 .layer {
   
   display: flex; 
@@ -339,7 +503,7 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 }
 .layer input[type="text"]:focus { border-bottom: 1px solid var(--primary); outline: none; }
 
-
+/* --- Modals --- */
 .modal {
   position: fixed; inset: 0; 
   background: rgba(0, 0, 0, 0.2);
@@ -369,6 +533,7 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 .modal-btn-row button { width: 100%; justify-content: center; padding: 12px; font-size: 14px; }
 
 
+/* Status Checks (for Lottie compatibility etc.) */
 .status-check {
   display: flex; justify-content: space-between; align-items: center;
   padding: 8px 0; border-bottom: 1px solid var(--surface-border); font-size: 14px;
@@ -379,7 +544,7 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 .status-fail .status-icon { color: #ef4444; }
 .status-warn .status-icon { color: #f59e0b; }
 
-
+/* Settings Input */
 .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .setting-row label { color: var(--text-muted); font-size: 13px; }
 .setting-input { 
@@ -388,7 +553,7 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 }
 .dark .setting-input { background: rgba(0,0,0,0.2); border-color: rgba(255,255,255,0.1); color: white; }
 
-
+/* Theme Card */
 .theme-card {
     background: rgba(255,255,255,0.7); 
     backdrop-filter: blur(5px);
@@ -400,17 +565,145 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
 }
 .dark .theme-card { background: rgba(30, 41, 59, 0.7); }
 
+/* --- Responsive Layout (Media Queries) --- */
 
+/* Tablet/Small Desktop (max 900px) */
 @media (max-width: 900px) {
-  main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; overflow: visible; }
-  body { height: auto; min-height: 100vh; }
-  .preview-section { padding: 10px; position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--surface-border); }
-  .canvas-container { max-width: 100%; height: 300px; aspect-ratio: auto; }
-  .editor-section { height: 500px; } 
-  .actions span { display: none; }
+  /* Main Layout: Stack columns vertically */
+  main { 
+    grid-template-columns: 1fr; 
+    grid-template-rows: auto 1fr; /* Preview on top, Editor on bottom */
+    height: auto; 
+    overflow: visible; 
+  }
+  
+  /* Body: Allow scroll for full content */
+  body { 
+    height: auto; 
+    min-height: 100vh; 
+  }
+  
+  /* Preview Section: Make it sticky at the top */
+  .preview-section { 
+    padding: 10px; 
+    position: sticky; 
+    top: 0; 
+    z-index: 10; 
+    border-bottom: 1px solid var(--surface-border); 
+  }
+  
+  /* Canvas: Ensure full width and fixed height */
+  .canvas-container { 
+    max-width: 100%; 
+    height: 300px; 
+    aspect-ratio: auto; 
+  }
+  
+  /* Editor: Give it a fixed height to contain scrollable content */
+  .editor-section { 
+    height: 500px; 
+  } 
+  
+  /* Actions: Hide text labels on small screens to save space */
+  .actions span { 
+    display: none; 
+  }
+  
+  /* FIX for Gradient Editor Layout for smaller screens */
+  #gradientEditorContent { 
+    flex-direction: column; /* Force stack columns vertically */
+    gap: 20px; 
+  }
+  
+  /* Ensure the gradient bar takes full width, overriding inline styles if they exist */
+  #gradientEditorContent > div {
+    flex: 1 1 100% !important; 
+    width: 100% !important;
+    min-width: unset !important;
+  }
+  
+  /* Gradient bar height fix for smaller screens */
+  #gradientBar { 
+    height: 48px; 
+  }
+  
+  /* Make the action buttons stack for better touch targets */
+  #gradientEditorContent > div:first-child > div:last-child {
+    display: flex;
+    flex-direction: column; /* Stack Add/Apply/Cancel buttons */
+    gap: 10px;
+    margin-top: 15px;
+  }
+  
+  #gradientEditorContent button {
+    width: 100%; /* Make buttons full width when stacked */
+    justify-content: center;
+  }
 }
+
+/* Mobile (max 480px) */
 @media (max-width: 480px) {
-  header h1 { font-size: 16px; }
-  .brand span { display: none; }
-  #colors { grid-template-columns: repeat(2, 1fr); }
-}
+  /* Header adjustments */
+  header h1 { 
+    font-size: 16px; 
+  }
+  
+  /* FIX 1: Keep the blue 'Editor' span visible by removing the display:none override */
+  .brand span { 
+    display: inline; /* Ensure it is visible */
+  }
+  
+  /* Color Grid: Switch to two columns */
+  #colors { 
+    grid-template-columns: repeat(2, 1fr); 
+  }
+  
+  /* --- GRADIENT EDITOR FIXES FOR 480PX (Based on overflow issue) --- */
+  
+  /* Force controls to stack vertically to save horizontal space */
+  .gradient-stop-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  /* Ensure the row containing the swatch and delete button is full width */
+  .gradient-stop-row > .swatch-and-delete {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px; /* Space before controls */
+  }
+
+  /* The main controls container (flex-direction: column) */
+  .gradient-stop-controls {
+    width: 100%;
+    flex-direction: column; /* Stack the color group and the slider */
+    gap: 8px;
+    margin-top: 0;
+  }
+  
+  /* Layout for color picker and hex code input (Row 1) */
+  .gradient-color-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+  }
+
+  /* Make the hex input take the available space */
+  .gradient-color-input-group .hexInput {
+      flex: 1;
+      text-align: left; 
+  }
+
+  /* The SLIDER WRAPPER (Row 2) MUST be full width */
+  .slider-track-wrap {
+      width: 100%;
+  }
+
+  /* The Range Input itself */
+  .gradient-stop-controls input[type="range"] {
+    width: 100%; 
+    margin: 0; 
+  }
