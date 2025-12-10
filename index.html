@@ -6,9 +6,8 @@
   <title>Magic Mall Lottie Editor</title>
   <meta name="theme-color" content="#eaf3ff">
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.9.6/lottie.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.10.2/lottie.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
 
   <link rel="stylesheet" href="styles.css">
@@ -28,6 +27,10 @@
       <span>Editor</span>
     </div>
     <div class="actions">
+      <button id="telegramBtn" class="primary animated-btn" title="Join Telegram Channel">
+        <i class="ri-telegram-fill"></i> Channel
+      </button>
+      
       <label class="btn-label primary">
         <i class="ri-upload-cloud-line"></i> Open
         <input id="fileInput" type="file" accept=".json,.tgs" />
@@ -98,7 +101,17 @@
       </div>
 
       <div id="tab-colors" class="tab-content active">
-        <div id="colors"></div>
+        <div id="colors">
+            <div class="color-card" data-color-id="1" data-color-type="single">
+                <input type="color" value="#0b84ff" class="color-picker-input">
+                <input type="text" value="#0B84FF" class="hexInput">
+            </div>
+            <div class="color-card" data-color-id="2" data-color-type="gradient">
+                <div class="color-group-badge"><i class="ri-gradienter-line"></i> GRADIENT</div>
+                <div style="width: 100%; height: 40px; border-radius: 6px; background: linear-gradient(90deg, #ff0000 0%, #00ff00 100%); margin-bottom: 6px; cursor: pointer;"></div>
+                <input type="text" value="GRADIENT" class="hexInput" disabled>
+            </div>
+        </div>
       </div>
       
       <div id="tab-themes" class="tab-content">
@@ -116,6 +129,60 @@
       </div>
     </section>
   </main>
+
+<div id="gradient-editor-modal" class="modal" aria-hidden="true">
+  <div class="modalCard" style="max-width:720px; width:92%; padding:18px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+      <h3 style="margin:0; font-size:18px;"><i class="ri-gradienter-line"></i> Gradient Editor</h3>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button id="gradientReverseBtn" class="ghost" title="Reverse gradient"><i class="ri-swap-horizontal-line"></i></button>
+        <button id="gradientResetBtn" class="ghost" title="Reset"><i class="ri-refresh-line"></i></button>
+        <button class="modal-close ghost" style="font-size:13px;">Close</button>
+      </div>
+    </div>
+
+    <div id="gradientEditorContent" style="margin-top:12px; display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap;">
+      <div style="flex:1 1 420px; min-width:280px;">
+        <div id="gradientCanvasWrap" style="padding:12px; border-radius:12px; background:var(--surface); border:1px solid var(--surface-border); box-shadow:var(--shadow);">
+          <div id="gradientBar" style="position:relative; height:56px; border-radius:10px; overflow:hidden; cursor:pointer; user-select:none;">
+            </div>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:13px; color:var(--text-muted);">
+            <div>Drag stops to reposition</div>
+            <div id="gradientPositionsLabel">Positions: —</div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button id="addGradientStop" class="primary" style="padding:8px 10px; font-size:13px;"><i class="ri-add-line"></i> Add Stop</button>
+          <button id="applyGradientChanges" class="primary" style="background:var(--primary); border: none; padding:8px 12px;">Apply to Animation</button>
+          <button id="discardGradientChanges" class="ghost modal-close" style="padding:8px 10px; font-size:13px;">Cancel</button>
+        </div>
+      </div>
+
+      <div style="width:300px; min-width:230px;">
+        <div style="font-size:13px; color:var(--text-muted); margin-bottom:6px;">Stops</div>
+        
+        <div id="gradientStopsList" style="display:flex; flex-direction:column; gap:8px; max-height:360px; overflow:auto; padding-right:6px;">
+            </div>
+
+        <div style="margin-top:12px; border-top:1px dashed var(--surface-border); padding-top:10px; font-size:13px; color:var(--text-muted);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div>Preview Alpha</div>
+            <input id="gradientAlpha" type="range" min="0" max="1" step="0.01" value="1" style="width:120px;">
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>Stop Count</div>
+            <div id="stopCountLabel">0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-btn-row" style="margin-top:14px;">
+      <button class="ghost modal-close" style="width:100%;">Close</button>
+    </div>
+  </div>
+</div>
 
   <div id="export-modal" class="modal" aria-hidden="true">
     <div class="modalCard"></div>
