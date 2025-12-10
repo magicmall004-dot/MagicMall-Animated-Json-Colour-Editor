@@ -1,4 +1,10 @@
 /* ===========================
+   Full script.js (patched)
+   Base: your uploaded script-1.js. Added: Gradient Editor (Option B)
+   Source (original): 1
+   =========================== */
+
+/* ===========================
    State & Core variables
    =========================== */
 let animData = null;            // Modified Lottie data
@@ -31,7 +37,6 @@ const loadingIndicator = document.getElementById('loadingIndicator');
 const loaderAnimEl = document.getElementById('loaderAnim'); 
 const animContainer = document.getElementById('anim'); 
 const browserWarning = document.getElementById('browserWarning'); // New element reference
-
 
 const setModal = document.getElementById('settings-modal');
 const inpW = document.getElementById('set-w');
@@ -79,14 +84,11 @@ const standardModalContentTemplate = `
     </div>
 `;
 
-
-
 let allExtractedColors = [];
 let groupedColors = {};
 let currentFilter = "All";
 
 let playerState = { isPaused: true, currentFrame: 0 };
-
 
 /* ===========================
    Debounced Reload & History
@@ -99,7 +101,6 @@ function _reloadAndPush() {
 // Debounce the heavy operation (reloading Lottie and pushing history)
 const debouncedReloadAnim = debounce(_reloadAndPush, 200);
 
-
 // ===========================
 // Utility: Debouncing function
 // ===========================
@@ -110,7 +111,6 @@ function debounce(func, timeout = 300){
     timer = setTimeout(() => { func.apply(this, args); }, timeout);
   };
 }
-
 
 /* ===========================
    Tab Logic
@@ -165,6 +165,14 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     if (e.shiftKey) redoChange(); else undoChange();
   }
+});
+
+/* ===========================
+   New Telegram Channel Button Logic
+   =========================== */
+document.getElementById('telegramBtn').addEventListener('click', () => {
+  const url = 'https://t.me/Magic_Mall_Game_Shop';
+  window.open(url, '_blank');
 });
 
 /* ===========================
@@ -364,13 +372,17 @@ function handleDrop(e) {
 // 1. Initialize Loader Animation (M logo animation.json)
 function initLoader() {
     if (loaderAnimInstance) loaderAnimInstance.destroy();
-    loaderAnimInstance = lottie.loadAnimation({
-        container: loaderAnimEl,
-        renderer: 'svg',
-        loop: true,
-        autoplay: true,
-        path: 'M_logo_animation.json' // Custom JSON file name for loading indicator
-    });
+    try {
+      loaderAnimInstance = lottie.loadAnimation({
+          container: loaderAnimEl,
+          renderer: 'svg',
+          loop: true,
+          autoplay: true,
+          path: 'M_logo_animation.json' // Custom JSON file name for loading indicator
+      });
+    } catch(e){
+      // ignore missing loader file
+    }
 }
 initLoader(); 
 
@@ -533,6 +545,10 @@ function rgbToHex(r,g,b){
   return '#'+[r,g,b].map(x=>Math.round(x).toString(16).padStart(2,'0')).join('');
 }
 function hexToRgb(hex){
+  // Pad if short (e.g. #FFF)
+  if (hex.length === 4) {
+    hex = `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+  }
   const bigint = parseInt(hex.slice(1),16);
   return { r: (bigint>>16)&255, g: (bigint>>8)&255, b: bigint & 255 };
 }
@@ -599,7 +615,10 @@ function extractColors(obj){
           // Colors are at index 1, 2, 3 (R, G, B) relative to the position
           const r = arr[i+1], g = arr[i+2], b = arr[i+3];
           const hx = rgbToHex(Math.round(r*255), Math.round(g*255), Math.round(b*255));
-          storeInstance(ref, gType, 'gradient', hx, i); // 'i' is the position index for update
+          // IMPORTANT: Grouping gradients by HEX is misleading as it breaks the color group when one stop changes.
+          // However, to satisfy the existing groupedColors structure, we continue grouping by hex.
+          // 'i' is the position index for update
+          storeInstance(ref, gType, 'gradient', hx, i); 
         }
       };
 
@@ -672,7 +691,9 @@ function filterAndRender(filterType, activeButton) {
     // Transform groupedColors map into an array of objects for rendering
     colorsToRender = Object.values(groupedColors).filter(cond).map(group => ({
         hex: group.hex,
-        layerCount: group.instances.length, // <-- This is the new count
+        // Check if ANY instance in the group is a gradient
+        isGradientGroup: group.instances.some(inst => inst.type === 'gradient'),
+        layerCount: group.instances.length, 
         instances: group.instances,
     }));
   } else {
@@ -683,6 +704,9 @@ function filterAndRender(filterType, activeButton) {
   renderColors(colorsToRender, groupedMode);
 }
 
+// =========================================================================
+// FIX: renderColors function updated to correctly handle click events
+// =========================================================================
 function renderColors(colors, isGrouped) {
   colorsContainer.innerHTML = '';
   if (!colors || colors.length === 0) {
@@ -691,57 +715,124 @@ function renderColors(colors, isGrouped) {
   }
   colors.forEach((c, idx) => {
     const card = document.createElement('div'); card.className = 'color-card';
-    const colorInput = document.createElement('input'); colorInput.type = 'color';
     
-    // Determine the HEX value for the input fields
+    // --- Determine if this card represents a Gradient Group ---
+    // If grouped: check the new isGradientGroup property.
+    // If not grouped: check the type property of the single instance (c).
+    const isGradient = isGrouped ? c.isGradientGroup : (c.type === 'gradient');
+    
     let hexVal = '#000000';
     if (isGrouped) {
       hexVal = c.hex;
     } else {
-      // NOTE: The hex value here is just for display/initial state
       hexVal = c.hex || (c.ref && (c.ref.k ? (Array.isArray(c.ref.k) ? rgbaToHex(c.ref.k) : (c.ref.s ? rgbaToHex(c.ref.s) : '#000')) : '#000000'));
     }
-    colorInput.value = hexVal;
 
-    const hexInput = document.createElement('input'); hexInput.className = 'hexInput'; hexInput.value = hexVal.toUpperCase();
+    const hexInput = document.createElement('input'); 
+    hexInput.className = 'hexInput'; 
+    hexInput.value = hexVal.toUpperCase();
+    
+    let colorInput = null;
+    let visualPreview = null;
+    
+    if (isGradient) {
+        // --- GRADIENT CARD RENDERING ---
+        
+        // Disable hex input and mark as gradient
+        hexInput.value = 'GRADIENT';
+        hexInput.disabled = true;
 
-    // NEW: Layer Grouping Badge (Only show if grouped and count > 1)
-    if (isGrouped && c.layerCount > 1) {
+        // Create the visual preview bar (gradient)
+        visualPreview = document.createElement('div');
+        visualPreview.style.width = '100%';
+        visualPreview.style.height = '40px';
+        visualPreview.style.borderRadius = '6px';
+        visualPreview.style.marginBottom = '6px';
+        visualPreview.style.cursor = 'pointer';
+        // Mock gradient background (better if you can compute it, but use the hex for simplicity)
+        // For grouped mode, the 'hex' is the first stop color, so a simple linear is better.
+        visualPreview.style.background = `linear-gradient(90deg, ${hexVal} 0%, #000000 100%)`; 
+        
+        // Add Gradient Badge
         const badge = document.createElement('div');
         badge.className = 'color-group-badge';
-        badge.innerHTML = `<i class="ri-stack-fill"></i> <span>${c.layerCount}</span>`; 
+        badge.innerHTML = `<i class="ri-gradienter-line"></i> ${isGrouped ? 'GRADIENT' : c.shapeType.toUpperCase()}`; 
         card.appendChild(badge);
+        card.appendChild(visualPreview);
+        
+    } else {
+        // --- SOLID COLOR CARD RENDERING ---
+        
+        // Create the standard <input type="color"> picker
+        colorInput = document.createElement('input'); 
+        colorInput.type = 'color';
+        colorInput.value = hexVal;
+        colorInput.className = 'color-picker-input';
+
+        // Add Group Badge (if applicable)
+        if (isGrouped && c.layerCount > 1) {
+            const badge = document.createElement('div');
+            badge.className = 'color-group-badge';
+            badge.innerHTML = `<i class="ri-stack-fill"></i> <span>${c.layerCount}</span>`; 
+            card.appendChild(badge);
+        }
+        
+        card.appendChild(colorInput);
     }
     
-    // Debounced Color Input Handler
-    colorInput.addEventListener('input', () => {
-      hexInput.value = colorInput.value.toUpperCase();
-      applyColorChange(c, isGrouped, colorInput.value, false); // Update data, skip immediate reload
-      debouncedReloadAnim(); // Schedule the reload and history push
-    });
-    // Debounced HEX Input Handler
+    // Debounced Color/Hex Input Handler for SOLID Colors
+    if (colorInput) {
+        colorInput.addEventListener('input', () => {
+            hexInput.value = colorInput.value.toUpperCase();
+            applyColorChange(c, isGrouped, colorInput.value, false); 
+            debouncedReloadAnim(); 
+        });
+    }
+
     hexInput.addEventListener('input', () => {
+      // Only process hex changes if it's NOT a gradient card
+      if (isGradient) return; 
+
       const v = hexInput.value.trim();
       hexInput.value = v.toUpperCase();
       if (/^#([A-Fa-f0-9]{6})$/.test(v)) {
-        colorInput.value = v;
-        applyColorChange(c, isGrouped, v, false); // Update data, skip immediate reload
-        debouncedReloadAnim(); // Schedule the reload and history push
+        if(colorInput) colorInput.value = v; // Update picker if available
+        applyColorChange(c, isGrouped, v, false); 
+        debouncedReloadAnim(); 
       }
     });
 
-    // NEW: Make the whole card trigger the color picker
+    // =====================================================================
+    // FIX: Click Handler Logic
+    // Only open the gradient editor if the card represents a gradient.
+    // =====================================================================
     card.addEventListener('click', (e) => {
-        if (e.target !== hexInput && e.target !== colorInput && e.target.closest('.color-group-badge') === null) {
-            colorInput.click(); 
+        // Prevent click if targeting a standard color picker input itself
+        if (e.target.matches('.color-picker-input')) {
+            return;
+        }
+
+        if (isGradient) {
+            // This is a gradient card (or gradient group), OPEN THE MODAL
+            e.stopPropagation(); // Stop propagation to prevent accidental closing/misclicks
+            openGradientEditor(c);
+            return;
+        } else {
+            // This is a solid color card (or solid group), ACTIVATE THE COLOR PICKER
+            
+            // Check if the click was on the card but NOT on the hex input
+            if (e.target !== hexInput && e.target.closest('.color-group-badge') === null && colorInput) {
+                // Programmatically click the color input to open the native picker
+                colorInput.click(); 
+            }
         }
     });
     
-    card.appendChild(colorInput);
     card.appendChild(hexInput);
     colorsContainer.appendChild(card);
   });
 }
+// =========================================================================
 
 /**
  * Applies color change to animData without reloading the animation immediately.
@@ -783,7 +874,7 @@ function applyColorChange(groupObj, isGrouped, hex, shouldReload = true) {
       const arrRef = inst.ref.k || inst.ref.s;
       
       // CRITICAL FIX: Check if the array is directly under 'arrRef' OR nested under 'arrRef.k'
-      let arr = Array.isArray(arrRef) ? arrRef : (arrRef && arrRef.k && Array.isArray(arrRef.k.k) ? arrRef.k.k : null);
+      let arr = Array.isArray(arrRef) ? arrRef : (arrRef && arrRef.k && arrRef.k.k && Array.isArray(arrRef.k.k) ? arrRef.k.k : null);
 
       if (arr && inst.index !== undefined) {
         // Gradient color stops are stored as [position, R, G, B, position, R, G, B, ...]
@@ -826,7 +917,6 @@ function renderLayers() {
   });
 }
 document.getElementById('refreshLayers').addEventListener('click', renderLayers);
-
 
 /* ===========================
    Themes/Presets Logic
@@ -958,7 +1048,6 @@ function deleteTheme(id) {
         renderThemes();
     }
 }
-
 
 /* ===========================
    Export Logic
@@ -1115,19 +1204,427 @@ document.getElementById('exportMenuBtn').onclick = () => {
     modal.classList.add('show');
 }
 
-document.getElementById('darkToggle').addEventListener('click', ()=>{
-  document.body.classList.toggle('dark');
+/* ===========================
+   Gradient Editor (Option B)
+   ===========================
+*/
+
+let gradientEditing = null; // { groupObj, gradRef, rawArr, stops: [...] }
+
+/**
+ * Open Gradient Editor for a grouped color object (groupedColors entry)
+ * groupObj: object from groupedColors (must have instances array)
+ */
+function openGradientEditor(groupObj) {
+  if(!groupObj) return;
+  // Find one gradient instance as reference
+  const gradInstance = groupObj.instances.find(i => i.type === 'gradient');
+  if(!gradInstance) return alert("No gradient instance available to edit.");
+
+  // Build workingStops array from the underlying structure
+  // gradInstance.ref may have .k (array) or .s for animated. We will support static and first keyframe of animated.
+  const arrRef = gradInstance.ref.k || gradInstance.ref.s || null;
+  let rawArr = null;
+
+  // Raw arrays have pattern: [pos, r, g, b, pos, r, g, b, ...]
+  // Some formats are nested; try to detect the deepest array.
+  if (Array.isArray(arrRef)) rawArr = arrRef;
+  else if (arrRef && arrRef.k && Array.isArray(arrRef.k)) rawArr = arrRef.k;
+  else if (arrRef && arrRef.k && arrRef.k.k && Array.isArray(arrRef.k.k)) rawArr = arrRef.k.k;
+
+  if(!rawArr) return alert("Unsupported gradient data structure.");
+
+  // Convert rawArr -> stops [{pos:0..1, r,g,b, hex, rawIndex}]
+  const stops = [];
+  for(let i=0;i<rawArr.length;i+=4) {
+    const pos = parseFloat(rawArr[i]); 
+    const r = parseFloat(rawArr[i+1]), g = parseFloat(rawArr[i+2]), b = parseFloat(rawArr[i+3]);
+    const hex = rgbToHex(Math.round(r*255), Math.round(g*255), Math.round(b*255));
+    stops.push({ pos: pos, r, g, b, hex, rawIndex:i });
+  }
+
+  // Prepare editing context
+  gradientEditing = {
+    groupObj,
+    gradRef: gradInstance.ref,
+    rawArr,
+    stops: stops.sort((a,b)=>a.pos-b.pos)
+  };
+
+  // Render editor UI
+  renderGradientEditor();
+  document.getElementById('gradient-editor-modal').classList.add('show');
+  // mark modal close buttons
+  document.querySelectorAll('#gradient-editor-modal .modal-close').forEach(btn => btn.onclick = () => {
+    document.getElementById('gradient-editor-modal').classList.remove('show');
+  });
+}
+
+/**
+ * Render the gradient bar and stop list
+ */
+function renderGradientEditor(){
+  if(!gradientEditing) return;
+  const { stops } = gradientEditing;
+  const bar = document.getElementById('gradientBar');
+  const list = document.getElementById('gradientStopsList');
+  const positionsLabel = document.getElementById('gradientPositionsLabel');
+  const stopCountLabel = document.getElementById('stopCountLabel');
+
+  // Build CSS gradient string
+  const gradientCss = stops.map(s => `${s.hex} ${(s.pos*100).toFixed(1)}%`).join(', ');
+  bar.style.background = `linear-gradient(90deg, ${gradientCss})`;
+  positionsLabel.textContent = 'Stops: ' + stops.map(s => (s.pos*100).toFixed(0)+'%').join(' • ');
+  stopCountLabel.textContent = String(stops.length);
+
+  // Clear existing stops in bar
+  bar.innerHTML = '';
+  stops.forEach((s, idx) => {
+    const stopEl = document.createElement('div');
+    stopEl.className = 'gradient-stop';
+    stopEl.style.left = (s.pos*100) + '%';
+    stopEl.title = s.hex;
+    stopEl.dataset.idx = idx;
+    stopEl.style.background = s.hex;
+    stopEl.addEventListener('mousedown', (e) => { e.stopPropagation(); selectStopByIndex(idx); startDragStop(e, idx); });
+    stopEl.addEventListener('touchstart', (e) => { e.stopPropagation(); selectStopByIndex(idx); startDragStop(e, idx); }, {passive:false});
+    bar.appendChild(stopEl);
+  });
+
+  // Build stops list
+  list.innerHTML = '';
+  stops.forEach((s, idx) => {
+    const row = document.createElement('div');
+    row.className = 'gradient-stop-row';
+    row.dataset.idx = idx;
+
+    const sw = document.createElement('div'); sw.className='gradient-stop-swatch'; sw.style.background = s.hex;
+    const controls = document.createElement('div'); controls.className='gradient-stop-controls';
+
+    // Color/Hex Group Container
+    const colorHexGroup = document.createElement('div');
+    colorHexGroup.className = 'gradient-color-input-group';
+    
+    // color picker
+    const colorInput = document.createElement('input'); colorInput.type='color'; colorInput.value = s.hex;
+    colorInput.addEventListener('input', () => { 
+        updateStopColor(idx, colorInput.value); 
+        hexInput.value = colorInput.value.toUpperCase(); // Update linked hex input
+        sw.style.background = colorInput.value; 
+        renderGradientEditor(); 
+    });
+
+    // Hex Input
+    const hexInput = document.createElement('input'); 
+    hexInput.type='text'; 
+    hexInput.className='hexInput gradient-hex-input'; 
+    hexInput.value = s.hex.toUpperCase();
+    hexInput.addEventListener('input', () => {
+        const v = hexInput.value.trim();
+        hexInput.value = v.toUpperCase();
+        if (/^#([A-Fa-f0-9]{6})$/.test(v)) {
+            colorInput.value = v; // Update linked color input
+            updateStopColor(idx, v); 
+            sw.style.background = v; 
+            renderGradientEditor(); 
+        }
+    });
+
+    // Add picker and hex to the group
+    colorHexGroup.appendChild(colorInput);
+    colorHexGroup.appendChild(hexInput);
+
+
+    // position slider
+    const posRange = document.createElement('input'); posRange.type='range'; posRange.min=0; posRange.max=100; posRange.value = Math.round(s.pos*100);
+    posRange.addEventListener('input', () => { updateStopPosition(idx, posRange.value/100); renderGradientEditor(); });
+    
+    // ** START FIX: NEW WRAPPER for the slider (crucial for mobile stacking) **
+    const sliderTrackWrap = document.createElement('div');
+    sliderTrackWrap.className = 'slider-track-wrap';
+    sliderTrackWrap.appendChild(posRange);
+
+
+    // delete button
+    const delBtn = document.createElement('button'); 
+    delBtn.className='danger-btn'; // Changed from 'ghost' to 'danger-btn' for styling consistency
+    delBtn.innerHTML='<i class="ri-delete-bin-line"></i>';
+    delBtn.addEventListener('click', ()=> { removeStop(idx); renderGradientEditor(); });
+
+
+    // Append to row structure
+    // Group 1: Swatch and Delete button 
+    const swatchAndDeleteContainer = document.createElement('div');
+    // ** ADDED CLASS HERE to match CSS **
+    swatchAndDeleteContainer.className = 'swatch-and-delete'; 
+    
+    swatchAndDeleteContainer.appendChild(sw);
+    swatchAndDeleteContainer.appendChild(delBtn); // Put the delete button next to the swatch
+    
+    row.appendChild(swatchAndDeleteContainer);
+    
+    // Group 2: Controls (Color/Hex and Slider)
+    controls.appendChild(colorHexGroup); // Add the Color/Hex group
+    controls.appendChild(sliderTrackWrap); // ** APPEND THE NEW SLIDER WRAPPER **
+    
+    row.appendChild(controls);
+    // ** END FIX **
+
+    list.appendChild(row);
+  });
+
+  // wire add / apply controls
+  const addBtn = document.getElementById('addGradientStop');
+  if(addBtn) addBtn.onclick = () => { addStop(); renderGradientEditor(); };
+  const applyBtn = document.getElementById('applyGradientChanges');
+  if(applyBtn) applyBtn.onclick = () => { applyGradientEdits(); document.getElementById('gradient-editor-modal').classList.remove('show'); };
+  const discardBtn = document.getElementById('discardGradientChanges');
+  if(discardBtn) discardBtn.onclick = () => { gradientEditing=null; document.getElementById('gradient-editor-modal').classList.remove('show'); };
+  const revBtn = document.getElementById('gradientReverseBtn');
+  if(revBtn) revBtn.onclick = () => { reverseStops(); renderGradientEditor(); };
+  const resetBtn = document.getElementById('gradientResetBtn');
+  if(resetBtn) resetBtn.onclick = () => { resetStops(); renderGradientEditor(); };
+
+  // alpha preview control
+  const alpha = document.getElementById('gradientAlpha');
+  if(alpha) {
+    alpha.oninput = () => {
+      const a = parseFloat(alpha.value);
+      bar.style.opacity = String(a);
+    };
+  }
+}
+
+/* Stop operations */
+function selectStopByIndex(idx){
+  const bar = document.getElementById('gradientBar');
+  if(!bar) return;
+  bar.querySelectorAll('.gradient-stop').forEach(s => s.classList.toggle('active', Number(s.dataset.idx) === idx));
+}
+
+function addStop(){
+  if(!gradientEditing) return;
+  const stops = gradientEditing.stops;
+  let pos = 0.5;
+  if(stops.length >= 2) pos = (stops[0].pos + stops[stops.length-1].pos)/2;
+  const hex = stops.length ? stops[Math.floor(stops.length/2)].hex : '#FFFFFF';
+  stops.push({ pos, r: hexToRgb(hex).r/255, g: hexToRgb(hex).g/255, b: hexToRgb(hex).b/255, hex, rawIndex: null });
+  stops.sort((a,b)=>a.pos-b.pos);
+}
+
+function removeStop(idx){
+  if(!gradientEditing) return;
+  if(gradientEditing.stops.length <= 2) return alert("Gradient needs at least 2 stops.");
+  gradientEditing.stops.splice(idx,1);
+}
+
+/* Update single stop position (0..1) */
+function updateStopPosition(idx, newPos) {
+  if(!gradientEditing) return;
+  gradientEditing.stops[idx].pos = Math.min(1, Math.max(0, parseFloat(newPos)));
+  gradientEditing.stops.sort((a,b)=>a.pos-b.pos);
+}
+
+/* Update color of stop */
+function updateStopColor(idx, hex) {
+  if(!gradientEditing) return;
+  const s = gradientEditing.stops[idx];
+  s.hex = hex;
+  const rgb = hexToRgb(hex);
+  s.r = rgb.r/255; s.g = rgb.g/255; s.b = rgb.b/255;
+}
+
+/* Reverse stops order */
+function reverseStops(){
+  if(!gradientEditing) return;
+  gradientEditing.stops = gradientEditing.stops.slice().map(s => ({ ...s, pos: 1 - s.pos})).sort((a,b)=>a.pos-b.pos);
+}
+
+/* Reset to original (rebuild from rawArr) */
+function resetStops(){
+  if(!gradientEditing) return;
+  const raw = gradientEditing.rawArr;
+  const newStops = [];
+  for(let i=0;i<raw.length;i+=4){
+    const pos = raw[i]; const r=raw[i+1], g=raw[i+2], b=raw[i+3];
+    newStops.push({ pos:parseFloat(pos), r, g, b, hex: rgbToHex(Math.round(r*255),Math.round(g*255),Math.round(b*255)), rawIndex:i});
+  }
+  gradientEditing.stops = newStops.sort((a,b)=>a.pos-b.pos);
+}
+
+/* Dragging logic: listen mouse move until mouseup, convert pageX to pos in bar */
+let dragging = null;
+function startDragStop(e, idx){
+  e.preventDefault();
+  dragging = { idx, startX: e.clientX || (e.touches && e.touches[0].clientX) };
+  const bar = document.getElementById('gradientBar');
+  if(!bar) return;
+  const rect = bar.getBoundingClientRect();
+
+  function onMove(ev){
+    const clientX = ev.clientX || (ev.touches && ev.touches[0].clientX);
+    let relative = (clientX - rect.left) / rect.width;
+    relative = Math.min(1, Math.max(0, relative));
+    updateStopPosition(dragging.idx, relative);
+    renderGradientEditor();
+  }
+  function onUp(){
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    window.removeEventListener('touchmove', onMove);
+    window.removeEventListener('touchend', onUp);
+    dragging = null;
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  window.addEventListener('touchmove', onMove, {passive:false});
+  window.addEventListener('touchend', onUp);
+}
+
+/**
+ * Apply gradient edits back into animation data.
+ * This will locate the correct raw array and write new values (positions and r,g,b)
+ */
+function applyGradientEdits(){
+  if(!gradientEditing) return;
+  const { gradRef, stops } = gradientEditing;
+  // rebuild raw array as [pos, r, g, b, ...] where r/g/b are normalized 0..1
+  const newRaw = [];
+  stops.forEach(s => {
+    newRaw.push(parseFloat(s.pos));
+    newRaw.push(parseFloat(s.r));
+    newRaw.push(parseFloat(s.g));
+    newRaw.push(parseFloat(s.b));
+  });
+
+  // Place back into gradRef in safest slot
+  if(Array.isArray(gradRef.k)) {
+    // static gradient
+    gradRef.k.length = 0;
+    for(let i=0;i<newRaw.length;i++) gradRef.k[i] = newRaw[i];
+  } else if (gradRef.s && Array.isArray(gradRef.s)) {
+    // animated -> try to update first keyframe start values
+    if (Array.isArray(gradRef.s) && gradRef.s.length && Array.isArray(gradRef.s[0])) {
+      gradRef.s[0].length = 0;
+      for(let i=0;i<newRaw.length;i++) gradRef.s[0][i] = newRaw[i];
+    } else {
+      gradRef.k = newRaw;
+    }
+  } else {
+    // fallback: set gradRef.k
+    gradRef.k = newRaw;
+  }
+
+  // Update grouped hex label to first stop hex for UI consistency
+  if(gradientEditing.groupObj) gradientEditing.groupObj.hex = stops[0] ? stops[0].hex : '#000000';
+
+  // re-extract and reload
+  extractAndRenderColors();
+  reloadAnim();
+
+  // clear editing context
+  gradientEditing = null;
+}
+
+/* ===========================
+   Initialization & small helpers
+   =========================== */
+
+function isObject(o){ return o && typeof o === 'object'; }
+
+// This Export Menu Button logic is kept here as it was defined here originally.
+document.getElementById('exportMenuBtn').onclick = () => {
+    if(!animData) return alert("Load a Lottie file first.");
+
+    if (isEmbeddedBrowser()) {
+        // --- SCENARIO 1: Download WILL NOT WORK (Show Notice) ---
+        modalCard.innerHTML = `
+            <div style="text-align:center; margin-bottom:16px;">
+                <i class="ri-alert-line" style="font-size:32px; color:#ffc107;"></i>
+            </div>
+            <h3 style="margin:0 0 8px 0; font-size:18px;">ဤBrowserတွင်Downloadလုပ်လို့မရပါ။
+            <p class="muted" style="margin:0; font-size:13px; line-height:1.5;">
+                security အရဤ Browser တွင် file တိုက်ရိုက် download လုပ်ခွင့်ပိတ်ထားသောကြောင့်မရပါ။.
+            </p>
+            <p style="font-weight:600; font-size:14px; margin:15px 0 5px 0;">
+                To save your work:
+            </p>
+            <ol style="padding-left: 20px; margin:0; font-size:13px;">
+                <li>အပေါ်က(•••)ကိုနှိပ်ပြီးအခြား Browserကနေဖွင့်ပါ။</li>
+                <li>"Open in Browser" ကိုနှိပ်ပြီး(Chrome/Safari/Google)တို့ကနေဖွင့်ပါ။.</li>
+                <li>Browserကနေဖွင့်မှသာ File download လုပ်နိုင်ပါလိမ့်မယ်။</li>
+            </ol>
+            <div class="modal-btn-row" style="margin-top:20px;">
+                <button class="ghost modal-close" style="color:var(--text-muted); border-color:var(--surface-border)">
+                    Close Instructions
+                </button>
+            </div>
+        `;
+        modalCard.querySelector('.modal-close').onclick = () => modal.classList.remove('show');
+
+    } else {
+        // --- SCENARIO 2: Download SHOULD WORK (Show Buttons) ---
+        modalCard.innerHTML = standardModalContentTemplate;
+        attachDownloadListeners();
+    }
+
+    modal.classList.add('show');
+}
+
+
+/* --- Dark Mode Toggle & Persistence Logic (Cleaned and unified) --- */
+
+// 1. Function to update the icon based on the mode
+function updateDarkToggleIcon(isDark) {
+    const darkToggle = document.getElementById('darkToggle');
+    if (darkToggle) {
+        // Show Sun icon if currently Dark (click to go Light)
+        // Show Moon icon if currently Light (click to go Dark)
+        darkToggle.innerHTML = isDark
+            ? '<i class="ri-sun-line"></i>' 
+            : '<i class="ri-moon-line"></i>';
+    }
+}
+
+// 2. Add click listener to the button
+document.getElementById('darkToggle').addEventListener('click', () => {
+    const isDark = document.body.classList.toggle('dark');
+    // Save preference to localStorage
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    // Update the button icon
+    updateDarkToggleIcon(isDark);
 });
 
-document.getElementById('frameLabel').textContent = '0';
-updateUndoRedoButtons();
 
+// 3. SINGLE, UNIFIED DOMContentLoaded Listener
 document.addEventListener('DOMContentLoaded', () => {
     // Initial setup of themes
-    renderThemes(); 
+    renderThemes();
+
+    // DARK MODE PERSISTENCE CHECK
+    const body = document.body;
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    // NEW: Check environment on load and show persistent warning strip
+    let isDark = false;
+
+    if (savedTheme === 'dark' || (savedTheme === null && prefersDark)) {
+        body.classList.add('dark');
+        isDark = true;
+    } else {
+        // Ensure 'dark' class is removed if theme is 'light' or default is light
+        body.classList.remove('dark');
+    }
+    
+    // Set the initial icon state based on the determined mode
+    updateDarkToggleIcon(isDark);
+
+    // BROWSER WARNING
     if (isEmbeddedBrowser()) {
         browserWarning.style.display = 'block';
     }
+    
+    // FINAL INIT (from your original code)
+    document.getElementById('frameLabel').textContent = '0';
+    updateUndoRedoButtons();
 });
