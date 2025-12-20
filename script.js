@@ -34,7 +34,8 @@ const tgsResultsEl = document.getElementById('tgs-results');
 // NEW ELEMENTS
 const themesList = document.getElementById('themesList');
 const loadingIndicator = document.getElementById('loadingIndicator');
-const loaderAnimEl = document.getElementById('loaderAnim'); 
+const loaderAnimEl = document.getElementById('loaderAnim');
+const gradientToggle = document.getElementById("gradientToggle");
 const animContainer = document.getElementById('anim'); 
 const browserWarning = document.getElementById('browserWarning'); // New element reference
 
@@ -669,6 +670,10 @@ document.querySelectorAll('.filter-btn').forEach(btn=>{
   });
 });
 groupCheckbox.addEventListener('change', ()=> applyCurrentFilter());
+gradientToggle.addEventListener('change', () => {
+    applyCurrentFilter(); 
+});
+
 
 function filterAndRender(filterType, activeButton) {
   let colorsToRender = [];
@@ -713,20 +718,18 @@ function renderColors(colors, isGrouped) {
     colorsContainer.innerHTML = '<div class="muted">No colors found.</div>';
     return;
   }
+
   colors.forEach((c, idx) => {
-    const card = document.createElement('div'); card.className = 'color-card';
+    const card = document.createElement('div'); 
+    card.className = 'color-card';
     
-    // --- Determine if this card represents a Gradient Group ---
-    // If grouped: check the new isGradientGroup property.
-    // If not grouped: check the type property of the single instance (c).
+    // Determine if this is a gradient
     const isGradient = isGrouped ? c.isGradientGroup : (c.type === 'gradient');
     
-    let hexVal = '#000000';
-    if (isGrouped) {
-      hexVal = c.hex;
-    } else {
-      hexVal = c.hex || (c.ref && (c.ref.k ? (Array.isArray(c.ref.k) ? rgbaToHex(c.ref.k) : (c.ref.s ? rgbaToHex(c.ref.s) : '#000')) : '#000000'));
-    }
+    // Check the toggle state (Advanced vs Simple)
+    const useAdvanced = gradientToggle.checked;
+
+    let hexVal = isGrouped ? c.hex : (c.hex || '#000000');
 
     const hexInput = document.createElement('input'); 
     hexInput.className = 'hexInput'; 
@@ -735,41 +738,32 @@ function renderColors(colors, isGrouped) {
     let colorInput = null;
     let visualPreview = null;
     
-    if (isGradient) {
-        // --- GRADIENT CARD RENDERING ---
-        
-        // Disable hex input and mark as gradient
+    // --- DECISION LOGIC ---
+    if (isGradient && useAdvanced) {
+        // ADVANCED MODE: Show the gradient preview bar (opens the modal on click)
         hexInput.value = 'GRADIENT';
         hexInput.disabled = true;
 
-        // Create the visual preview bar (gradient)
         visualPreview = document.createElement('div');
         visualPreview.style.width = '100%';
         visualPreview.style.height = '40px';
         visualPreview.style.borderRadius = '6px';
         visualPreview.style.marginBottom = '6px';
         visualPreview.style.cursor = 'pointer';
-        // Mock gradient background (better if you can compute it, but use the hex for simplicity)
-        // For grouped mode, the 'hex' is the first stop color, so a simple linear is better.
-        visualPreview.style.background = `linear-gradient(90deg, ${hexVal} 0%, #000000 100%)`; 
+        visualPreview.style.background = `linear-gradient(90deg, ${hexVal} 0%, #333 100%)`; 
         
-        // Add Gradient Badge
         const badge = document.createElement('div');
         badge.className = 'color-group-badge';
         badge.innerHTML = `<i class="ri-gradienter-line"></i> ${isGrouped ? 'GRADIENT' : c.shapeType.toUpperCase()}`; 
         card.appendChild(badge);
         card.appendChild(visualPreview);
-        
     } else {
-        // --- SOLID COLOR CARD RENDERING ---
-        
-        // Create the standard <input type="color"> picker
+        // SIMPLE MODE: Show standard color picker (even for gradient stops)
         colorInput = document.createElement('input'); 
         colorInput.type = 'color';
         colorInput.value = hexVal;
         colorInput.className = 'color-picker-input';
 
-        // Add Group Badge (if applicable)
         if (isGrouped && c.layerCount > 1) {
             const badge = document.createElement('div');
             badge.className = 'color-group-badge';
@@ -777,10 +771,21 @@ function renderColors(colors, isGrouped) {
             card.appendChild(badge);
         }
         
+        // If it's a gradient stop being shown in "Simple Mode", show a badge
+        if (isGradient && !useAdvanced) {
+            const stopBadge = document.createElement('div');
+            stopBadge.className = 'color-group-badge';
+            stopBadge.style.background = 'var(--primary)';
+            stopBadge.innerHTML = `<span style="font-size:9px">STOP</span>`;
+            card.appendChild(stopBadge);
+        }
+
         card.appendChild(colorInput);
     }
     
-    // Debounced Color/Hex Input Handler for SOLID Colors
+    card.appendChild(hexInput);
+
+    // Event Listeners for Color/Hex inputs
     if (colorInput) {
         colorInput.addEventListener('input', () => {
             hexInput.value = colorInput.value.toUpperCase();
@@ -790,48 +795,32 @@ function renderColors(colors, isGrouped) {
     }
 
     hexInput.addEventListener('input', () => {
-      // Only process hex changes if it's NOT a gradient card
-      if (isGradient) return; 
-
+      if (isGradient && useAdvanced) return; 
       const v = hexInput.value.trim();
-      hexInput.value = v.toUpperCase();
       if (/^#([A-Fa-f0-9]{6})$/.test(v)) {
-        if(colorInput) colorInput.value = v; // Update picker if available
+        if(colorInput) colorInput.value = v;
         applyColorChange(c, isGrouped, v, false); 
         debouncedReloadAnim(); 
       }
     });
 
-    // =====================================================================
-    // FIX: Click Handler Logic
-    // Only open the gradient editor if the card represents a gradient.
-    // =====================================================================
+    // Handle Clicks
     card.addEventListener('click', (e) => {
-        // Prevent click if targeting a standard color picker input itself
-        if (e.target.matches('.color-picker-input')) {
-            return;
-        }
-
-        if (isGradient) {
-            // This is a gradient card (or gradient group), OPEN THE MODAL
-            e.stopPropagation(); // Stop propagation to prevent accidental closing/misclicks
+        if (e.target === hexInput || e.target === colorInput) return;
+        
+        if (isGradient && useAdvanced) {
+            // Open the complex gradient editor modal
             openGradientEditor(c);
-            return;
-        } else {
-            // This is a solid color card (or solid group), ACTIVATE THE COLOR PICKER
-            
-            // Check if the click was on the card but NOT on the hex input
-            if (e.target !== hexInput && e.target.closest('.color-group-badge') === null && colorInput) {
-                // Programmatically click the color input to open the native picker
-                colorInput.click(); 
-            }
+        } else if (colorInput) {
+            // In simple mode, just open the native color picker
+            colorInput.click();
         }
     });
-    
-    card.appendChild(hexInput);
+
     colorsContainer.appendChild(card);
   });
 }
+
 // =========================================================================
 
 /**
