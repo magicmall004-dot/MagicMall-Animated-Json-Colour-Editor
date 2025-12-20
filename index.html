@@ -73,19 +73,27 @@
           </div>
         </div>
         
-        <div class="filters-row">
-          <div class="filter-pills">
-            <button class="filter-btn active" data-filter="All">All</button>
-            <button class="filter-btn" data-filter="Fill">Fill</button>
-            <button class="filter-btn" data-filter="Stroke">Stroke</button>
-            <button class="filter-btn" data-filter="Gradient Fill">Gradient Fill</button>
-            <button class="filter-btn" data-filter="Gradient Stroke">Gradient Stroke</button>
-          </div>
-          
-          <div style="display:flex; align-items:center; gap:6px; margin-left:4px;">
+ <div class="filters-row">
+    <div class="filter-pills">
+        <button class="filter-btn active" data-filter="All">All</button>
+        <button class="filter-btn" data-filter="Fill">Fill</button>
+        <button class="filter-btn" data-filter="Stroke">Stroke</button>
+        <button class="filter-btn" data-filter="Gradient Fill">Gradient Fill</button>
+        <button class="filter-btn" data-filter="Gradient Stroke">Gradient Stroke</button>
+    </div>
+    
+    <div style="display:flex; align-items:center; gap:12px; margin-left:auto;">
+        <div style="display:flex; align-items:center; gap:6px;">
             <input id="groupDuplicates" type="checkbox" style="accent-color:var(--primary)">
-            <label for="groupDuplicates" style="font-size:11px; color:var(--text-muted)">Group Colors</label>
-          </div>
+            <label for="groupDuplicates" style="font-size:11px; color:var(--text-muted); cursor:pointer">Group Colors</label>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px; border-left:1px solid var(--surface-border); padding-left:12px;">
+            <input id="gradientToggle" type="checkbox" checked style="accent-color:var(--primary)">
+            <label for="gradientToggle" style="font-size:11px; font-weight:600; color:var(--text); cursor:pointer">Advanced Gradient</label>
+        </div>
+    </div>
+</div>
         </div>
       </div>
     </section>
