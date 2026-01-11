@@ -393,15 +393,15 @@ initLoader();
  * @param {object} data - The Lottie JSON data to use.
  */
 function loadLottie(data) {
-    loadingIndicator.style.display = 'flex'; // Show loading indicator
-    
-    // Use a slight delay to ensure the loader animation renders
+    loadingIndicator.style.display = 'flex';
+
     setTimeout(() => {
         if (anim) {
             try { playerState.currentFrame = anim.currentFrame; } catch(e){}
             anim.destroy();
             animContainer.innerHTML = '';
         }
+
         if (!data) {
             loadingIndicator.style.display = 'none';
             return;
@@ -415,31 +415,49 @@ function loadLottie(data) {
             animationData: data
         });
 
+        let loaderHidden = false;
+        const hideLoader = () => {
+            if (loaderHidden) return;
+            loaderHidden = true;
+            loadingIndicator.style.display = 'none';
+        };
+
+        // ✅ Works for normal JSON
         anim.addEventListener('DOMLoaded', () => {
             const total = Math.round(anim.totalFrames || 0);
             slider.max = Math.max(0, total - 1);
             totalLabel.textContent = total;
 
-            // Restore state or start from 0
             if (playerState.isPaused) {
                 anim.goToAndStop(playerState.currentFrame || 0, true);
             } else {
                 anim.goToAndPlay(playerState.currentFrame || 0, true);
             }
-            document.getElementById('playPauseBtn').innerHTML = playerState.isPaused ? '<i class="ri-play-fill"></i>' : '<i class="ri-pause-fill"></i>';
-            loadingIndicator.style.display = 'none'; // Hide loading indicator
+            document.getElementById('playPauseBtn').innerHTML =
+              playerState.isPaused ? '<i class="ri-play-fill"></i>' : '<i class="ri-pause-fill"></i>';
+
+            hideLoader();
         });
+
+        // 🔥 TELEGRAM / TGS FIXES (VERY IMPORTANT)
+        anim.addEventListener('data_ready', hideLoader);
+        anim.addEventListener('config_ready', hideLoader);
+
+        // 🔥 FINAL FAILSAFE (never get stuck)
+        setTimeout(hideLoader, 1200);
 
         anim.addEventListener('enterFrame', () => {
             try {
-                if(!slider.matches(':active')) {
+                if (!slider.matches(':active')) {
                     slider.value = anim.currentFrame;
                     frameLabel.textContent = Math.round(anim.currentFrame);
                 }
             } catch(e){}
         });
-    }, 50); // Small delay to allow the loading anim to start
+
+    }, 30);
 }
+
 
 function reloadAnim() {
     loadLottie(animData);
