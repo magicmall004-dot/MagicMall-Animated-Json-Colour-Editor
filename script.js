@@ -7,6 +7,11 @@
 /* ===========================
    State & Core variables
    =========================== */
+if (!window.pako) {
+  alert('❌ pako is not loaded. Please refresh.');
+  throw new Error('pako missing');
+}
+
 let animData = null;            // Modified Lottie data
 let originalAnimData = null;    // Stored Original Lottie data (for reset)
 let anim = null;                // Lottie animation instance
