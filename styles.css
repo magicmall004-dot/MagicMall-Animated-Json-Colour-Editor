@@ -583,6 +583,11 @@ input[type=range] { flex: 1; cursor: pointer; accent-color: var(--primary); heig
     min-height: 100vh; 
   }
   
+  #anim svg {
+  width: 100% !important;
+  height: 100% !important;
+}
+
   /* Preview Section: Make it sticky at the top */
   .preview-section { 
     padding: 10px; 
