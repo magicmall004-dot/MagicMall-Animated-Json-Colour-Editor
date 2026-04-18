@@ -30,6 +30,12 @@
       <button id="telegramBtn" class="primary animated-btn" title="Join Telegram Channel">
         <i class="ri-telegram-fill"></i> Channel
       </button>
+
+<label class="primary animated-btn" title="Merge another animation into the current one">
+    <i class="ri-git-merge-line"></i> Merge
+    <input type="file" id="mergeInput" accept=".json,.tgs" hidden onchange="handleMergeFile(this.files[0])">
+</label>
+
       
       <label class="btn-label primary">
         <i class="ri-upload-cloud-line"></i> Open
