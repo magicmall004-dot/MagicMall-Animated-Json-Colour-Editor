@@ -142,7 +142,8 @@ function isEmbedded() {
    CLOUDFLARE WORKER URL
    ============================================= */
 
-const WORKER_URL = 'https://lottie-dl.hlaaunghtun68.workers.dev';
+const WORKER_URL = 'https://lottie-dl.hlaaunghtun68.workers.dev'; // fallback
+const VPS_URL    = 'http://139.180.208.16:3000'; // ← your Vultr VPS (replace port if different)
 
 /* =============================================
    HISTORY (Undo / Redo)
@@ -1184,16 +1185,32 @@ async function tryWebShare(blob, filename) {
 }
 
 /* ---- Strategy 3: Upload to Cloudflare Worker, get a real download URL ---- */
+/* --- Send file via your Telegram bot (VPS) → appears in user's chat --- */
+async function sendViaBot(blob, filename) {
+  try {
+    const tg     = window.Telegram?.WebApp;
+    const chatId = tg?.initDataUnsafe?.user?.id;
+    if (!chatId) return false;
+
+    const form = new FormData();
+    form.append('file',     blob, filename);
+    form.append('chat_id',  String(chatId));
+    form.append('filename', filename);
+
+    const res  = await fetch(VPS_URL + '/send-file', { method: 'POST', body: form });
+    const json = await res.json();
+    return json.ok === true;
+  } catch(_) {
+    return false;
+  }
+}
+
+/* --- Upload to Cloudflare Worker (fallback — returns a public download URL) --- */
 async function uploadToServer(blob, filename) {
   try {
     const formData = new FormData();
     formData.append('file', blob, filename);
-
-    const res = await fetch(WORKER_URL + '/upload', {
-      method: 'POST',
-      body: formData,
-    });
-
+    const res = await fetch(WORKER_URL + '/upload', { method: 'POST', body: formData });
     if (!res.ok) return null;
     const data = await res.json();
     return data.url || null;
@@ -1346,50 +1363,60 @@ async function smartExport(type) {
   openModal('export-modal');
   await new Promise(r => setTimeout(r, 80));
 
-  /* Upload to Worker first — we need the URL for every Telegram strategy */
   const tg = window.Telegram?.WebApp;
-  const uploadedUrl = await uploadToServer(blob, filename);
 
-  /* ── Strategy 2: Telegram native downloadFile (Bot API 8.0+ / Telegram 7.10+) ──
-       Params MUST be an object { url, file_name } — not positional args.           */
-  if (tg && typeof tg.downloadFile === 'function' && uploadedUrl) {
-    closeModal('export-modal');
-    let callbackFired = false;
-    tg.downloadFile({ url: uploadedUrl, file_name: filename }, accepted => {
-      callbackFired = true;
-      if (!accepted) {
-        /* User dismissed the native prompt — show URL+QR so they can still get the file */
-        openModal('export-modal');
-        showDownloadLink(uploadedUrl, filename);
-      }
-    });
-    /* Some Telegram clients fire no callback — wait 500ms then consider it handled */
-    await new Promise(r => setTimeout(r, 500));
-    if (!callbackFired) return; // download dialog opened, we're done
+  /* ── Strategy 2: Send via your VPS bot → file appears in user's Telegram chat ──
+       Best method — no download needed, user just saves from chat.                  */
+  const botSent = await sendViaBot(blob, filename);
+  if (botSent) {
+    const box = $('exportModalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3><i class="ri-send-plane-line"></i> File Sent!</h3>
+        <button class="btn btn-ghost icon-btn modal-close-btn" data-modal="export-modal">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+      <div style="text-align:center;padding:24px 0 20px;">
+        <div style="font-size:52px;margin-bottom:12px;">✅</div>
+        <p style="margin:0 0 6px;font-size:16px;font-weight:700;color:var(--text);">
+          File sent to your chat!
+        </p>
+        <p style="margin:0;font-size:13px;color:var(--text2);">
+          Telegram chat ထဲကို file ပို့ပြီးပါပြီ<br>
+          Chat ထဲတွင် file ကိုရှာပြီး save လုပ်ပါ
+        </p>
+      </div>
+      <button class="btn btn-primary modal-close-btn" data-modal="export-modal"
+              style="width:100%;justify-content:center;padding:13px;">
+        <i class="ri-check-line"></i> OK
+      </button>
+    `;
     return;
   }
 
-  /* ── Strategy 3: Telegram openLink → opens in device's real browser ──
-       Chrome (Android) and Safari (iOS) honour Content-Disposition:attachment
-       so the file downloads automatically when opened there.                  */
+  /* ── Strategy 3: Upload to Cloudflare Worker → get public URL ── */
+  const uploadedUrl = await uploadToServer(blob, filename);
+
+  /* ── Strategy 4: Telegram openLink → opens in real Chrome/Safari ── */
   if (tg && typeof tg.openLink === 'function' && uploadedUrl) {
     closeModal('export-modal');
     tg.openLink(uploadedUrl, { try_instant_view: false });
     return;
   }
 
-  /* ── Strategy 4: Web Share API ── */
+  /* ── Strategy 5: Web Share API ── */
   const shared = await tryWebShare(blob, filename);
   if (shared === true)        { closeModal('export-modal'); return; }
   if (shared === 'cancelled') { closeModal('export-modal'); return; }
 
-  /* ── Strategy 5: Show URL + QR code — user copies link and opens in browser ── */
+  /* ── Strategy 6: Show Download button modal ── */
   if (uploadedUrl) {
     showDownloadLink(uploadedUrl, filename);
     return;
   }
 
-  /* ── Strategy 6: base64 data-URI long-press (last resort) ── */
+  /* ── Strategy 7: base64 data-URI last resort ── */
   showBase64Fallback(blob, filename);
 }
 
