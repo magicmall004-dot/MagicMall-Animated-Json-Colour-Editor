@@ -78,6 +78,42 @@ function hexToNorm(hex) {
 
 function isValidHex(v) { return /^#([0-9A-Fa-f]{6})$/.test(v.trim()); }
 
+/* ---- HSV ↔ RGB conversions ---- */
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max - min;
+  let h = 0;
+  const s = max === 0 ? 0 : d / max, v = max;
+  if (d !== 0) {
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return { h: h * 360, s, v };
+}
+
+function hsvToRgb(h, s, v) {
+  h /= 360;
+  const i = Math.floor(h * 6), f = h * 6 - i,
+        p = v*(1-s), q = v*(1-f*s), t = v*(1-(1-f)*s);
+  const cases = [[v,t,p],[q,v,p],[p,v,t],[p,q,v],[t,p,v],[v,p,q]];
+  const [r,g,b] = cases[i % 6];
+  return { r: Math.round(r*255), g: Math.round(g*255), b: Math.round(b*255) };
+}
+
+function hsvToHex(h, s, v) {
+  const { r, g, b } = hsvToRgb(h, s, v);
+  return rgbToHex(r, g, b);
+}
+
+function hexToHsv(hex) {
+  if (!isValidHex(hex)) return { h:0, s:1, v:1 };
+  const n = parseInt(hex.slice(1), 16);
+  return rgbToHsv((n>>16)&255, (n>>8)&255, n&255);
+}
+
 /* =============================================
    ENVIRONMENT DETECTION
    ============================================= */
@@ -447,13 +483,9 @@ function renderColors() {
       const swatch = document.createElement('div');
       swatch.className = 'color-swatch';
       swatch.style.background = item.hex;
-
-      const picker = document.createElement('input');
-      picker.type = 'color';
-      picker.value = item.hex;
-      picker.title = 'Pick colour';
-      swatch.appendChild(picker);
       card.appendChild(swatch);
+
+      let currentHex = item.hex;
 
       const hexEl = document.createElement('div');
       hexEl.className = 'color-hex';
@@ -462,19 +494,11 @@ function renderColors() {
       hexEl.textContent = item.hex.toUpperCase();
       card.appendChild(hexEl);
 
-      picker.addEventListener('input', debounce(() => {
-        const newHex = picker.value;
-        swatch.style.background = newHex;
-        hexEl.textContent = newHex.toUpperCase();
-        applyColorChange(item, newHex);
-        debouncedReload();
-      }, 80));
-
       const applyHexEdit = () => {
         const raw = hexEl.textContent.trim();
         const v = raw.startsWith('#') ? raw : '#' + raw;
         if (isValidHex(v)) {
-          picker.value = v;
+          currentHex = v;
           swatch.style.background = v;
           hexEl.textContent = v.toUpperCase();
           applyColorChange(item, v);
@@ -486,8 +510,13 @@ function renderColors() {
 
       card.addEventListener('click', e => {
         if (e.target === hexEl) return;
-        if (e.target === picker) return;
-        picker.click();
+        openHsvPicker(currentHex, newHex => {
+          currentHex = newHex;
+          swatch.style.background = newHex;
+          hexEl.textContent = newHex.toUpperCase();
+          applyColorChange(item, newHex);
+          debouncedReload();
+        });
       });
     }
 
@@ -1456,6 +1485,225 @@ $('darkToggle').addEventListener('click', () => {
   localStorage.setItem('mm_theme', isDark ? 'dark' : 'light');
   applyThemeMode(isDark);
 });
+
+/* =============================================
+   HSV COLOUR PICKER MODAL
+   ============================================= */
+
+let _hsvH = 0, _hsvS = 1, _hsvV = 1;
+let _hsvCallback = null;
+let _hsvCanvas = null, _hsvCtx = null;
+let _hsvDraggingSv = false, _hsvDraggingHue = false;
+
+function ensureHsvModal() {
+  if ($('hsv-picker-modal')) return;
+
+  const modal = document.createElement('div');
+  modal.id = 'hsv-picker-modal';
+  modal.className = 'modal-overlay';
+  modal.setAttribute('aria-hidden', 'true');
+  modal.innerHTML = `
+    <div class="modal-box" id="hsvPickerBox"
+         style="max-width:340px;padding:0;overflow:visible;border-radius:16px;">
+
+      <div class="modal-head" style="padding:14px 16px 10px;">
+        <h3 style="font-size:15px;"><i class="ri-palette-line"></i> Colour Picker</h3>
+        <button class="btn btn-ghost icon-btn" id="hsvCloseBtn">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+
+      <!-- SV canvas wrapper (relative so cursor can be absolute inside) -->
+      <div id="hsvSvWrap" style="position:relative;margin:0 16px 10px;">
+        <canvas id="hsvSvCanvas" width="308" height="190"
+                style="width:100%;height:auto;border-radius:10px;display:block;
+                       touch-action:none;cursor:crosshair;"></canvas>
+        <div id="hsvSvCursor"
+             style="position:absolute;width:18px;height:18px;border-radius:50%;
+                    border:2px solid #fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.45),0 2px 6px rgba(0,0,0,.35);
+                    pointer-events:none;transform:translate(-50%,-50%);will-change:left,top;"></div>
+      </div>
+
+      <!-- Hue slider -->
+      <div style="padding:0 16px;margin-bottom:14px;">
+        <div id="hsvHueTrack"
+             style="position:relative;height:22px;border-radius:11px;cursor:pointer;touch-action:none;
+                    background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);">
+          <div id="hsvHueThumb"
+               style="position:absolute;top:50%;left:0%;transform:translate(-50%,-50%);
+                      width:28px;height:28px;border-radius:50%;border:3px solid #fff;
+                      box-shadow:0 0 0 1px rgba(0,0,0,.3),0 2px 8px rgba(0,0,0,.35);
+                      background:#f00;transition:background .05s;"></div>
+        </div>
+      </div>
+
+      <!-- Old → New preview + Hex input -->
+      <div style="padding:0 16px;margin-bottom:12px;display:flex;gap:10px;align-items:center;">
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          <div id="hsvOldSwatch"
+               style="width:36px;height:36px;border-radius:7px 0 0 7px;border:1px solid rgba(128,128,128,.25);"></div>
+          <div id="hsvNewSwatch"
+               style="width:36px;height:36px;border-radius:0 7px 7px 0;border:1px solid rgba(128,128,128,.25);"></div>
+        </div>
+        <input id="hsvHexInput" maxlength="7" spellcheck="false" placeholder="#RRGGBB"
+               style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--border);
+                      background:var(--surface2);color:var(--text);font-family:monospace;
+                      font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;" />
+      </div>
+
+      <!-- H / S / V inputs -->
+      <div style="padding:0 16px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text2);font-weight:600;">
+          H°
+          <input id="hsvHInput" type="number" min="0" max="360"
+                 style="padding:7px 4px;border-radius:7px;border:1px solid var(--border);
+                        background:var(--surface2);color:var(--text);font-size:13px;text-align:center;" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text2);font-weight:600;">
+          S%
+          <input id="hsvSInput" type="number" min="0" max="100"
+                 style="padding:7px 4px;border-radius:7px;border:1px solid var(--border);
+                        background:var(--surface2);color:var(--text);font-size:13px;text-align:center;" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text2);font-weight:600;">
+          V%
+          <input id="hsvVInput" type="number" min="0" max="100"
+                 style="padding:7px 4px;border-radius:7px;border:1px solid var(--border);
+                        background:var(--surface2);color:var(--text);font-size:13px;text-align:center;" />
+        </label>
+      </div>
+
+      <!-- Apply / Cancel -->
+      <div style="padding:0 16px 16px;display:flex;gap:8px;">
+        <button id="hsvCancelBtn" class="btn btn-ghost"
+                style="flex:1;justify-content:center;">Cancel</button>
+        <button id="hsvApplyBtn" class="btn btn-primary"
+                style="flex:1;justify-content:center;">
+          <i class="ri-check-line"></i> Apply
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  _hsvCanvas = $('hsvSvCanvas');
+  _hsvCtx    = _hsvCanvas.getContext('2d');
+
+  /* --- Close / cancel --- */
+  $('hsvCloseBtn').addEventListener('click', closeHsvPicker);
+  $('hsvCancelBtn').addEventListener('click', closeHsvPicker);
+  modal.addEventListener('click', e => { if (e.target === modal) closeHsvPicker(); });
+
+  /* --- Apply --- */
+  $('hsvApplyBtn').addEventListener('click', () => {
+    const hex = hsvToHex(_hsvH, _hsvS, _hsvV);
+    if (_hsvCallback) _hsvCallback(hex);
+    closeHsvPicker();
+  });
+
+  /* --- Hex text input --- */
+  $('hsvHexInput').addEventListener('input', () => {
+    const raw = $('hsvHexInput').value.trim();
+    const v = raw.startsWith('#') ? raw : '#' + raw;
+    if (isValidHex(v)) {
+      const hsv = hexToHsv(v);
+      _hsvH = hsv.h; _hsvS = hsv.s; _hsvV = hsv.v;
+      hsvPickerDraw();
+    }
+  });
+
+  /* --- Number inputs --- */
+  const clamp = (n,lo,hi) => Math.max(lo, Math.min(hi, n));
+  $('hsvHInput').addEventListener('change', () => { _hsvH = clamp(+$('hsvHInput').value||0,0,360); hsvPickerDraw(); });
+  $('hsvSInput').addEventListener('change', () => { _hsvS = clamp(+$('hsvSInput').value||0,0,100)/100; hsvPickerDraw(); });
+  $('hsvVInput').addEventListener('change', () => { _hsvV = clamp(+$('hsvVInput').value||0,0,100)/100; hsvPickerDraw(); });
+
+  /* --- SV canvas drag --- */
+  function svPos(e) {
+    const rect = _hsvCanvas.getBoundingClientRect();
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    _hsvS = Math.max(0, Math.min(1, (cx - rect.left)  / rect.width));
+    _hsvV = Math.max(0, Math.min(1, 1 - (cy - rect.top) / rect.height));
+    hsvPickerDraw();
+  }
+  _hsvCanvas.addEventListener('mousedown',  e => { _hsvDraggingSv = true; svPos(e); });
+  _hsvCanvas.addEventListener('touchstart', e => { _hsvDraggingSv = true; svPos(e); e.preventDefault(); }, { passive: false });
+  document.addEventListener('mousemove',  e => { if (_hsvDraggingSv) svPos(e); });
+  document.addEventListener('touchmove',  e => { if (_hsvDraggingSv) { svPos(e); e.preventDefault(); } }, { passive: false });
+  document.addEventListener('mouseup',  () => { _hsvDraggingSv = false; });
+  document.addEventListener('touchend', () => { _hsvDraggingSv = false; });
+
+  /* --- Hue slider drag --- */
+  const hueTrack = $('hsvHueTrack');
+  function huePos(e) {
+    const rect = hueTrack.getBoundingClientRect();
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    _hsvH = Math.max(0, Math.min(360, ((cx - rect.left) / rect.width) * 360));
+    hsvPickerDraw();
+  }
+  hueTrack.addEventListener('mousedown',  e => { _hsvDraggingHue = true; huePos(e); });
+  hueTrack.addEventListener('touchstart', e => { _hsvDraggingHue = true; huePos(e); e.preventDefault(); }, { passive: false });
+  document.addEventListener('mousemove',  e => { if (_hsvDraggingHue) huePos(e); });
+  document.addEventListener('touchmove',  e => { if (_hsvDraggingHue) { huePos(e); e.preventDefault(); } }, { passive: false });
+  document.addEventListener('mouseup',  () => { _hsvDraggingHue = false; });
+  document.addEventListener('touchend', () => { _hsvDraggingHue = false; });
+}
+
+function hsvPickerDraw() {
+  /* SV canvas */
+  const w = _hsvCanvas.width, h = _hsvCanvas.height;
+  const { r, g, b } = hsvToRgb(_hsvH, 1, 1);
+  const gH = _hsvCtx.createLinearGradient(0, 0, w, 0);
+  gH.addColorStop(0, '#fff');
+  gH.addColorStop(1, `rgb(${r},${g},${b})`);
+  _hsvCtx.fillStyle = gH; _hsvCtx.fillRect(0,0,w,h);
+  const gV = _hsvCtx.createLinearGradient(0, 0, 0, h);
+  gV.addColorStop(0, 'rgba(0,0,0,0)');
+  gV.addColorStop(1, '#000');
+  _hsvCtx.fillStyle = gV; _hsvCtx.fillRect(0,0,w,h);
+
+  /* Cursor position (relative to canvas element) */
+  const cursor = $('hsvSvCursor');
+  if (cursor) {
+    cursor.style.left = (_hsvS * 100) + '%';
+    cursor.style.top  = ((1 - _hsvV) * 100) + '%';
+    cursor.style.background = hsvToHex(_hsvH, _hsvS, _hsvV);
+  }
+
+  /* Hue thumb */
+  const thumb = $('hsvHueThumb');
+  if (thumb) {
+    thumb.style.left = (_hsvH / 360 * 100) + '%';
+    thumb.style.background = `hsl(${_hsvH},100%,50%)`;
+  }
+
+  /* Colour outputs */
+  const hex = hsvToHex(_hsvH, _hsvS, _hsvV);
+  const newSwatch = $('hsvNewSwatch');
+  if (newSwatch) newSwatch.style.background = hex;
+
+  const hexInput = $('hsvHexInput');
+  if (hexInput && document.activeElement !== hexInput) hexInput.value = hex.toUpperCase();
+
+  const hI = $('hsvHInput'), sI = $('hsvSInput'), vI = $('hsvVInput');
+  if (hI && document.activeElement !== hI) hI.value = Math.round(_hsvH);
+  if (sI && document.activeElement !== sI) sI.value = Math.round(_hsvS * 100);
+  if (vI && document.activeElement !== vI) vI.value = Math.round(_hsvV * 100);
+}
+
+function openHsvPicker(currentHex, callback) {
+  ensureHsvModal();
+  _hsvCallback = callback;
+  const hsv = hexToHsv(currentHex);
+  _hsvH = hsv.h; _hsvS = hsv.s; _hsvV = hsv.v;
+  const old = $('hsvOldSwatch');
+  if (old) old.style.background = currentHex;
+  openModal('hsv-picker-modal');
+  requestAnimationFrame(() => hsvPickerDraw());
+}
+
+function closeHsvPicker() { closeModal('hsv-picker-modal'); }
 
 /* =============================================
    TELEGRAM BUTTON
