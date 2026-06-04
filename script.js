@@ -1306,11 +1306,15 @@ async function smartExport(type) {
 
   const box = $('exportModalBox');
 
+  /* ── Strategy 1: Normal browser — anchor download, no modal needed ── */
   if (!isRestrictedWebView()) {
     const ok = anchorDownload(blob, filename);
     if (ok) { closeModal('export-modal'); return; }
   }
 
+  /* ── We are inside a restricted WebView (Telegram etc.) ── */
+
+  /* Show a "preparing" screen while we upload */
   box.innerHTML = `
     <div style="text-align:center;padding:40px 0;">
       <div class="spinner" style="margin:0 auto 14px;"></div>
@@ -1321,17 +1325,34 @@ async function smartExport(type) {
   openModal('export-modal');
   await new Promise(r => setTimeout(r, 80));
 
+  /* ── Strategy 2: Telegram native downloadFile API (Bot API 8.0+) ──
+       Upload to Worker first to get a real HTTPS URL, then hand it to
+       Telegram.WebApp.downloadFile() which shows a native save dialog. */
+  const tg = window.Telegram?.WebApp;
+  if (tg && typeof tg.downloadFile === 'function') {
+    const workerUrl = await uploadToServer(blob, filename);
+    if (workerUrl) {
+      closeModal('export-modal');
+      tg.downloadFile(workerUrl, filename, status => {
+        /* status: 'downloading' | 'cancelled' | 'failed' — ignore silently */
+      });
+      return;
+    }
+  }
+
+  /* ── Strategy 3: Web Share API (iOS Safari in Mini App sometimes supports this) ── */
   const shared = await tryWebShare(blob, filename);
   if (shared === true)        { closeModal('export-modal'); return; }
   if (shared === 'cancelled') { closeModal('export-modal'); return; }
 
-  /* FIX: use the real server upload instead of the dead Cloudflare placeholder */
-  const serverUrl = await uploadToServer(blob, filename);
-  if (serverUrl) {
-    showDownloadLink(serverUrl, filename);
+  /* ── Strategy 4: Upload to Worker → show URL + QR code for user to open in browser ── */
+  const workerUrl = await uploadToServer(blob, filename);
+  if (workerUrl) {
+    showDownloadLink(workerUrl, filename);
     return;
   }
 
+  /* ── Strategy 5: base64 data-URI long-press fallback (last resort) ── */
   showBase64Fallback(blob, filename);
 }
 
