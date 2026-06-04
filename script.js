@@ -1325,37 +1325,50 @@ async function smartExport(type) {
   openModal('export-modal');
   await new Promise(r => setTimeout(r, 80));
 
-  /* ── Strategy 2: Telegram native downloadFile API (Bot API 8.0+) ──
-       Upload to Worker first to get a real HTTPS URL, then pass it to
-       Telegram.WebApp.downloadFile({ url, file_name }, callback).
-       IMPORTANT: params must be an object — NOT positional arguments. */
+  /* Upload to Worker first — we need the URL for every Telegram strategy */
   const tg = window.Telegram?.WebApp;
   const uploadedUrl = await uploadToServer(blob, filename);
 
+  /* ── Strategy 2: Telegram native downloadFile (Bot API 8.0+ / Telegram 7.10+) ──
+       Params MUST be an object { url, file_name } — not positional args.           */
   if (tg && typeof tg.downloadFile === 'function' && uploadedUrl) {
     closeModal('export-modal');
+    let callbackFired = false;
     tg.downloadFile({ url: uploadedUrl, file_name: filename }, accepted => {
+      callbackFired = true;
       if (!accepted) {
-        /* User declined or it failed — fall through to URL+QR modal */
+        /* User dismissed the native prompt — show URL+QR so they can still get the file */
         openModal('export-modal');
         showDownloadLink(uploadedUrl, filename);
       }
     });
+    /* Some Telegram clients fire no callback — wait 500ms then consider it handled */
+    await new Promise(r => setTimeout(r, 500));
+    if (!callbackFired) return; // download dialog opened, we're done
     return;
   }
 
-  /* ── Strategy 3: Web Share API (iOS Safari in Mini App sometimes supports this) ── */
+  /* ── Strategy 3: Telegram openLink → opens in device's real browser ──
+       Chrome (Android) and Safari (iOS) honour Content-Disposition:attachment
+       so the file downloads automatically when opened there.                  */
+  if (tg && typeof tg.openLink === 'function' && uploadedUrl) {
+    closeModal('export-modal');
+    tg.openLink(uploadedUrl, { try_instant_view: false });
+    return;
+  }
+
+  /* ── Strategy 4: Web Share API ── */
   const shared = await tryWebShare(blob, filename);
   if (shared === true)        { closeModal('export-modal'); return; }
   if (shared === 'cancelled') { closeModal('export-modal'); return; }
 
-  /* ── Strategy 4: Upload to Worker → show URL + QR code for user to open in browser ── */
+  /* ── Strategy 5: Show URL + QR code — user copies link and opens in browser ── */
   if (uploadedUrl) {
     showDownloadLink(uploadedUrl, filename);
     return;
   }
 
-  /* ── Strategy 5: base64 data-URI long-press fallback (last resort) ── */
+  /* ── Strategy 6: base64 data-URI long-press (last resort) ── */
   showBase64Fallback(blob, filename);
 }
 
