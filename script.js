@@ -1180,61 +1180,53 @@ function getQrUrl(text) {
 
 /* ---- Show result modal with URL + QR ---- */
 function showDownloadLink(url, filename) {
+  const tg = window.Telegram?.WebApp;
   const box = $('exportModalBox');
   box.innerHTML = `
     <div class="modal-head">
-      <h3><i class="ri-links-line"></i> File Ready!</h3>
+      <h3><i class="ri-download-line"></i> File Ready!</h3>
       <button class="btn btn-ghost icon-btn modal-close-btn" data-modal="export-modal">
         <i class="ri-close-line"></i>
       </button>
     </div>
 
-    <div style="text-align:center;margin:4px 0 14px;">
-      <img src="${getQrUrl(url)}" width="160" height="160"
-           style="border-radius:12px;border:4px solid var(--blue);padding:4px;background:white;"
-           alt="QR Code" />
-      <p style="margin:8px 0 0;font-size:12px;color:var(--text2);">
-        📷 QR Code scan လုပ်ပြီး download ဆွဲနိုင်သည်
-      </p>
+    <div style="text-align:center;padding:8px 0 16px;">
+      <div style="font-size:48px;margin-bottom:8px;">📁</div>
+      <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:var(--text);">${filename}</p>
+      <p style="margin:0;font-size:12px;color:var(--text2);">File တင်ပြီးပါပြီ • 1 နာရီသာ ရနိုင်သည်</p>
     </div>
+
+    <button id="openDownloadBtn" class="btn btn-primary"
+            style="width:100%;justify-content:center;font-size:15px;padding:14px;margin-bottom:10px;">
+      <i class="ri-download-cloud-line"></i>&nbsp; Download File
+    </button>
 
     <div style="display:flex;align-items:center;gap:8px;
                 background:var(--surface2);border:1px solid var(--border);
-                border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+                border-radius:10px;padding:8px 12px;margin-bottom:10px;">
       <input id="dlUrlInput" readonly value="${url}"
              style="flex:1;background:transparent;border:none;
                     font-family:var(--font-mono);font-size:11px;
-                    color:var(--text);outline:none;min-width:0;" />
-      <button id="copyUrlBtn" class="btn btn-primary" style="padding:6px 12px;font-size:12px;flex-shrink:0;">
+                    color:var(--text2);outline:none;min-width:0;" />
+      <button id="copyUrlBtn" class="btn btn-ghost" style="padding:5px 10px;font-size:12px;flex-shrink:0;">
         <i class="ri-clipboard-line"></i> Copy
       </button>
     </div>
 
-    <div class="tg-save-steps">
-      <div class="tg-step">
-        <span class="tg-step-num">1</span>
-        <span><strong>Copy</strong> ကိုနှိပ်ပြီး link ကို copy ကူးပါ</span>
-      </div>
-      <div class="tg-step">
-        <span class="tg-step-num">2</span>
-        <span>Chrome / Safari browser ဖွင့်ပြီး link paste လုပ်ပါ</span>
-      </div>
-      <div class="tg-step">
-        <span class="tg-step-num">3</span>
-        <span>File auto-download ဆင်းသွားပါလိမ့်မည် <span style="opacity:.6;">(1 hr မှသာ ရနိုင်သည်)</span></span>
-      </div>
-    </div>
-
-    <div class="modal-footer">
-      <a href="${url}" target="_blank" class="btn btn-primary"
-         style="flex:1;justify-content:center;text-decoration:none;">
-        <i class="ri-external-link-line"></i> Open Link
-      </a>
-      <button class="btn btn-ghost modal-close-btn" data-modal="export-modal" style="flex:1;justify-content:center;">
-        Close
-      </button>
-    </div>
+    <button class="btn btn-ghost modal-close-btn" data-modal="export-modal"
+            style="width:100%;justify-content:center;">
+      Close
+    </button>
   `;
+
+  /* Download button — use tg.openLink so Telegram opens in real Chrome/Safari */
+  $('openDownloadBtn').addEventListener('click', () => {
+    if (tg && typeof tg.openLink === 'function') {
+      tg.openLink(url, { try_instant_view: false });
+    } else {
+      window.open(url, '_blank');
+    }
+  });
 
   $('copyUrlBtn').addEventListener('click', () => {
     navigator.clipboard.writeText(url).then(() => {
