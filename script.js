@@ -1326,18 +1326,22 @@ async function smartExport(type) {
   await new Promise(r => setTimeout(r, 80));
 
   /* ── Strategy 2: Telegram native downloadFile API (Bot API 8.0+) ──
-       Upload to Worker first to get a real HTTPS URL, then hand it to
-       Telegram.WebApp.downloadFile() which shows a native save dialog. */
+       Upload to Worker first to get a real HTTPS URL, then pass it to
+       Telegram.WebApp.downloadFile({ url, file_name }, callback).
+       IMPORTANT: params must be an object — NOT positional arguments. */
   const tg = window.Telegram?.WebApp;
-  if (tg && typeof tg.downloadFile === 'function') {
-    const workerUrl = await uploadToServer(blob, filename);
-    if (workerUrl) {
-      closeModal('export-modal');
-      tg.downloadFile(workerUrl, filename, status => {
-        /* status: 'downloading' | 'cancelled' | 'failed' — ignore silently */
-      });
-      return;
-    }
+  const uploadedUrl = await uploadToServer(blob, filename);
+
+  if (tg && typeof tg.downloadFile === 'function' && uploadedUrl) {
+    closeModal('export-modal');
+    tg.downloadFile({ url: uploadedUrl, file_name: filename }, accepted => {
+      if (!accepted) {
+        /* User declined or it failed — fall through to URL+QR modal */
+        openModal('export-modal');
+        showDownloadLink(uploadedUrl, filename);
+      }
+    });
+    return;
   }
 
   /* ── Strategy 3: Web Share API (iOS Safari in Mini App sometimes supports this) ── */
@@ -1346,9 +1350,8 @@ async function smartExport(type) {
   if (shared === 'cancelled') { closeModal('export-modal'); return; }
 
   /* ── Strategy 4: Upload to Worker → show URL + QR code for user to open in browser ── */
-  const workerUrl = await uploadToServer(blob, filename);
-  if (workerUrl) {
-    showDownloadLink(workerUrl, filename);
+  if (uploadedUrl) {
+    showDownloadLink(uploadedUrl, filename);
     return;
   }
 
