@@ -1,7 +1,0 @@
-name = "lottie-dl"
-main = "worker.js"
-compatibility_date = "2024-01-01"
-
-[[kv_namespaces]]
-binding = "LOTTIE_FILES"
-id = "78135ca814a845fe8e3b2dfa63b0fcaf"
