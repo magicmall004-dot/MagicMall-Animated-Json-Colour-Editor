@@ -79,6 +79,36 @@ function hexToNorm(hex) {
 function isValidHex(v) { return /^#([0-9A-Fa-f]{6})$/.test(v.trim()); }
 
 /* =============================================
+   ENVIRONMENT DETECTION
+   ============================================= */
+
+function isTelegramWebView() {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('telegram')) return true;
+  if (typeof window.TelegramWebviewProxy !== 'undefined') return true;
+  if (typeof window.Telegram !== 'undefined') return true;
+  return false;
+}
+
+function isRestrictedWebView() {
+  const ua = navigator.userAgent.toLowerCase();
+  if (isTelegramWebView()) return true;
+  if (ua.includes('wv') || ua.includes('instagram') || ua.includes('fban')) return true;
+  try { return window.self !== window.top; } catch(_) { return true; }
+}
+
+/* FIX: isEmbedded was called in DOMContentLoaded but was never defined */
+function isEmbedded() {
+  return isRestrictedWebView();
+}
+
+/* =============================================
+   CLOUDFLARE WORKER URL
+   ============================================= */
+
+const WORKER_URL = 'https://lottie-dl.hlaaunghtun68.workers.dev';
+
+/* =============================================
    HISTORY (Undo / Redo)
    ============================================= */
 
@@ -260,7 +290,7 @@ frameSlider.addEventListener('input', () => {
 });
 
 /* =============================================
-   COLOUR EXTRACTION  ← the critical section
+   COLOUR EXTRACTION
    ============================================= */
 
 function extractColors(data) {
@@ -283,7 +313,6 @@ function extractColors(data) {
       const c = obj.c;
       if (c) {
         if (c.a === 1 && Array.isArray(c.k)) {
-          // Animated: keyframes
           c.k.forEach(kf => {
             if (kf.s && Array.isArray(kf.s)) {
               addColor(kf, 'solid', sType, rgbaArrToHex(kf.s));
@@ -318,7 +347,6 @@ function extractColors(data) {
 
       if (g.k) {
         if (g.k.a === 1 && Array.isArray(g.k.k)) {
-          // Animated gradient
           g.k.k.forEach(kf => {
             if (kf.s && Array.isArray(kf.s)) processArr(kf.s, kf);
           });
@@ -330,10 +358,10 @@ function extractColors(data) {
       }
     }
 
-    /* ── Recurse (skip already-processed colour props) ── */
+    /* ── Recurse ── */
     for (const k in obj) {
       if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
-      if (k === 'c' || k === 'sc') continue; // handled above in context
+      if (k === 'c' || k === 'sc') continue;
       const v = obj[k];
       if (v && typeof v === 'object') walk(v);
     }
@@ -388,7 +416,6 @@ function renderColors() {
 
     const isGrad = item.isGrad && useAdvGrad;
 
-    /* ── Badge ── */
     if (item.count > 1 || isGrad) {
       const badge = document.createElement('div');
       badge.className = 'color-badge';
@@ -400,9 +427,7 @@ function renderColors() {
       card.appendChild(badge);
     }
 
-    /* ── Swatch / gradient preview ── */
     if (isGrad) {
-      // Build gradient CSS for preview
       const gradCss = buildGradientPreviewCss(item.group || null, item.entry || null, isGrouped);
       const swatch = document.createElement('div');
       swatch.className = 'gradient-swatch';
@@ -419,7 +444,6 @@ function renderColors() {
       });
 
     } else {
-      /* Solid colour card */
       const swatch = document.createElement('div');
       swatch.className = 'color-swatch';
       swatch.style.background = item.hex;
@@ -438,7 +462,6 @@ function renderColors() {
       hexEl.textContent = item.hex.toUpperCase();
       card.appendChild(hexEl);
 
-      // Picker → apply immediately
       picker.addEventListener('input', debounce(() => {
         const newHex = picker.value;
         swatch.style.background = newHex;
@@ -447,7 +470,6 @@ function renderColors() {
         debouncedReload();
       }, 80));
 
-      // Hex edit → apply on Enter or blur
       const applyHexEdit = () => {
         const raw = hexEl.textContent.trim();
         const v = raw.startsWith('#') ? raw : '#' + raw;
@@ -462,7 +484,6 @@ function renderColors() {
       hexEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyHexEdit(); hexEl.blur(); } });
       hexEl.addEventListener('blur', applyHexEdit);
 
-      // Click card (not on picker/hex) → open picker
       card.addEventListener('click', e => {
         if (e.target === hexEl) return;
         if (e.target === picker) return;
@@ -475,10 +496,8 @@ function renderColors() {
 }
 
 function buildGradientPreviewCss(group, entry, isGrouped) {
-  // Collect stop colours for a rough gradient preview
   let hexList = [];
   if (isGrouped && group) {
-    // Use distinct hexes from gradient instances in this group
     group.instances
       .filter(i => i.type === 'gradient')
       .forEach(i => { if (!hexList.includes(i.hex)) hexList.push(i.hex); });
@@ -512,23 +531,17 @@ function applyColorChange(item, newHex) {
     const ref = inst.ref;
 
     if (inst.type === 'solid') {
-      // Keyframe start value  (animated)
       if (ref.s && Array.isArray(ref.s)) {
         const a = ref.s[3] !== undefined ? ref.s[3] : 1;
         ref.s = [r, g, b, a];
-      }
-      // Static: value is .k (direct array)
-      else if (Array.isArray(ref.k)) {
+      } else if (Array.isArray(ref.k)) {
         const a = ref.k[3] !== undefined ? ref.k[3] : 1;
         ref.k = [r, g, b, a];
-      }
-      // Static: .k.k nested
-      else if (ref.k && Array.isArray(ref.k.k)) {
+      } else if (ref.k && Array.isArray(ref.k.k)) {
         const a = ref.k.k[3] !== undefined ? ref.k.k[3] : 1;
         ref.k.k = [r, g, b, a];
       }
     } else if (inst.type === 'gradient' && inst.gradIndex !== undefined) {
-      // Find the raw gradient array
       const arr = resolveGradientArray(ref);
       if (arr && arr.length > inst.gradIndex + 3) {
         arr[inst.gradIndex + 1] = r;
@@ -538,15 +551,11 @@ function applyColorChange(item, newHex) {
     }
   });
 
-  // Update grouped hex label
   if (isGrouped && item.group) item.group.hex = newHex;
-
-  // Re-extract so subsequent edits see fresh refs
   allColors = extractColors(animData);
 }
 
 function resolveGradientArray(ref) {
-  // ref might be: the g object, a keyframe, g.k, etc.
   if (Array.isArray(ref.k))       return ref.k;
   if (ref.k && Array.isArray(ref.k.k)) return ref.k.k;
   if (Array.isArray(ref.s))       return ref.s;
@@ -725,7 +734,6 @@ function applyTheme(theme) {
   theme.colors.forEach((tc, i) => {
     if (!groups[i]) return;
     const fakeItem = { group: groups[i], entry: groups[i].instances[0] };
-    // Temporarily force grouped mode
     const wasGrouped = groupCheckbox.checked;
     groupCheckbox.checked = true;
     applyColorChange(fakeItem, tc.hex);
@@ -765,7 +773,6 @@ function openGradientEditor(groupObj) {
   const rawArr = resolveGradientArray(ref);
   if (!rawArr) return alert('Cannot resolve gradient data array.');
 
-  // Build stops from rawArr: [pos, r, g, b, ...]
   const stops = [];
   for (let i = 0; i < rawArr.length; i += 4) {
     if (i + 3 >= rawArr.length) break;
@@ -789,12 +796,10 @@ function renderGradientEditor() {
   if (!gradEdit) return;
   const { stops, selectedIdx } = gradEdit;
 
-  // ── Bar ──
   const bar = $('gradientBar');
   const gradCss = stops.map(s => `${s.hex} ${(s.pos*100).toFixed(1)}%`).join(', ');
   bar.style.background = `linear-gradient(90deg, ${gradCss})`;
 
-  // Remove old pins, keep background
   bar.querySelectorAll('.gradient-stop-pin').forEach(el => el.remove());
 
   stops.forEach((s, idx) => {
@@ -808,20 +813,17 @@ function renderGradientEditor() {
     bar.appendChild(pin);
   });
 
-  // Click on bar to add stop
   bar.onclick = e => {
-    if (e.target !== bar) return; // only on background
+    if (e.target !== bar) return;
     const rect = bar.getBoundingClientRect();
     const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     addStop(pos);
     renderGradientEditor();
   };
 
-  // ── Info ──
   $('gradientPositionsLabel').textContent = stops.map(s => Math.round(s.pos*100)+'%').join(' · ');
   $('stopCountLabel').textContent = stops.length;
 
-  // ── Stop list ──
   const list = $('gradientStopsList');
   list.innerHTML = '';
 
@@ -836,7 +838,6 @@ function renderGradientEditor() {
     const controls = document.createElement('div');
     controls.className = 'gs-controls';
 
-    // Row 1: color picker + hex
     const inputs = document.createElement('div');
     inputs.className = 'gs-inputs';
 
@@ -857,7 +858,6 @@ function renderGradientEditor() {
       s.r = r; s.g = g; s.b = b;
       hexInput.value = s.hex.toUpperCase();
       swatch.style.background = s.hex;
-      // Live update bar only
       const gradCss = gradEdit.stops.map(x => `${x.hex} ${(x.pos*100).toFixed(1)}%`).join(', ');
       $('gradientBar').style.background = `linear-gradient(90deg, ${gradCss})`;
     });
@@ -881,7 +881,6 @@ function renderGradientEditor() {
     inputs.appendChild(colorPicker);
     inputs.appendChild(hexInput);
 
-    // Row 2: position slider
     const posRow = document.createElement('div');
     posRow.className = 'gs-pos-row';
 
@@ -907,7 +906,6 @@ function renderGradientEditor() {
     controls.appendChild(inputs);
     controls.appendChild(posRow);
 
-    // Delete button
     const delBtn = document.createElement('button');
     delBtn.className = 'gs-del';
     delBtn.innerHTML = '<i class="ri-delete-bin-line"></i>';
@@ -926,11 +924,9 @@ function renderGradientEditor() {
     list.appendChild(row);
   });
 
-  // Alpha slider
   const alphaSlider = $('gradientAlpha');
   alphaSlider.oninput = () => { $('gradientBar').style.opacity = alphaSlider.value; };
 
-  // Wire gradient editor buttons
   $('addGradientStop').onclick    = () => { addStop(); renderGradientEditor(); };
   $('applyGradientChanges').onclick  = applyGradientEdits;
   $('gradientReverseBtn').onclick  = () => { reverseStops(); renderGradientEditor(); };
@@ -985,7 +981,6 @@ function applyGradientEdits() {
     newRaw.push(s.pos, s.r, s.g, s.b);
   });
 
-  // Write back into the animation data
   if (Array.isArray(ref.k)) {
     ref.k.splice(0, ref.k.length, ...newRaw);
   } else if (ref.k && Array.isArray(ref.k.k)) {
@@ -1019,10 +1014,8 @@ function startDragPin(e, idx) {
     const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     gradEdit.stops[_dragging].pos = pos;
     gradEdit.stops.sort((a,b) => a.pos - b.pos);
-    // Find new index of the dragged stop after sort
     const gradCss = gradEdit.stops.map(s => `${s.hex} ${(s.pos*100).toFixed(1)}%`).join(', ');
     bar.style.background = `linear-gradient(90deg, ${gradCss})`;
-    // Move the pin visually
     const pins = bar.querySelectorAll('.gradient-stop-pin');
     pins.forEach((p,i) => { p.style.left = (gradEdit.stops[i].pos * 100) + '%'; });
   }
@@ -1118,36 +1111,10 @@ function runTgsScan() {
 }
 
 /* =============================================
-   EXPORT — Telegram WebView compatible
-   Strategy waterfall:
-     1. Web Share API  (works in TG WebView on Android/iOS)
-     2. window.open(blobURL)  (works in some TG versions)
-     3. Render base64 data: URI page that auto-downloads
-     4. Show inline base64 link user can long-press → Save
+   EXPORT — Telegram WebView Compatible
    ============================================= */
 
-/* ---- Environment detection ---- */
-function isTelegramWebView() {
-  const ua = navigator.userAgent.toLowerCase();
-  // Telegram injects "TelegramWebView" or shares UA with mobile Chrome WebView
-  if (ua.includes('telegram')) return true;
-  if (typeof window.TelegramWebviewProxy !== 'undefined') return true;
-  if (typeof window.Telegram !== 'undefined') return true;
-  return false;
-}
-
-function isAnyWebView() {
-  const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes('wv') || ua.includes('telegram') || ua.includes('instagram') || ua.includes('fban')) return true;
-  try { return window.self !== window.top; } catch(_) { return true; }
-}
-
-function canUseWebShare(file) {
-  // navigator.share with files requires HTTPS + browser support
-  return !!(navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
-}
-
-/* ---- Build the blobs ---- */
+/* ---- Build blobs ---- */
 function buildJsonBlob() {
   if (!animData) return null;
   return new Blob([JSON.stringify(animData, null, 2)], { type: 'application/json' });
@@ -1161,10 +1128,8 @@ function buildTgsBlob() {
   return new Blob([compressed], { type: 'application/octet-stream' });
 }
 
-/* ---- Download strategies ---- */
-
-// Strategy 1: Standard <a download> — works in real browsers
-function tryAnchorDownload(blob, filename) {
+/* ---- Strategy 1: Normal anchor download (real browsers) ---- */
+function anchorDownload(blob, filename) {
   try {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1175,161 +1140,246 @@ function tryAnchorDownload(blob, filename) {
   } catch(_) { return false; }
 }
 
-// Strategy 2: Web Share API — works in Telegram WebView on Android & iOS 15+
+/* ---- Strategy 2: Web Share API ---- */
 async function tryWebShare(blob, filename) {
   try {
+    if (!navigator.share || !navigator.canShare) return false;
     const file = new File([blob], filename, { type: blob.type });
-    if (!canUseWebShare(file)) return false;
+    if (!navigator.canShare({ files: [file] })) return false;
     await navigator.share({ files: [file], title: filename });
     return true;
   } catch(e) {
-    // User cancelled = AbortError, that's fine; other errors = not supported
     if (e.name === 'AbortError') return 'cancelled';
     return false;
   }
 }
 
-// Strategy 3: Open blob URL in new tab — TG sometimes allows this
-function tryOpenBlobTab(blob) {
+/* ---- Strategy 3: Upload to Cloudflare Worker, get a real download URL ---- */
+async function uploadToServer(blob, filename) {
   try {
-    const url = URL.createObjectURL(blob);
-    const w = window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    return !!w;
-  } catch(_) { return false; }
+    const formData = new FormData();
+    formData.append('file', blob, filename);
+
+    const res = await fetch(WORKER_URL + '/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.url || null;
+  } catch(_) {
+    return null;
+  }
 }
 
-// Strategy 4: Base64 data URI page — universal fallback, user long-presses link
-function showBase64Fallback(blob, filename, format) {
+/* ---- QR Code (no library needed) ---- */
+function getQrUrl(text) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(text)}`;
+}
+
+/* ---- Show result modal with URL + QR ---- */
+function showDownloadLink(url, filename) {
+  const box = $('exportModalBox');
+  box.innerHTML = `
+    <div class="modal-head">
+      <h3><i class="ri-links-line"></i> File Ready!</h3>
+      <button class="btn btn-ghost icon-btn modal-close-btn" data-modal="export-modal">
+        <i class="ri-close-line"></i>
+      </button>
+    </div>
+
+    <div style="text-align:center;margin:4px 0 14px;">
+      <img src="${getQrUrl(url)}" width="160" height="160"
+           style="border-radius:12px;border:4px solid var(--blue);padding:4px;background:white;"
+           alt="QR Code" />
+      <p style="margin:8px 0 0;font-size:12px;color:var(--text2);">
+        📷 QR Code scan လုပ်ပြီး download ဆွဲနိုင်သည်
+      </p>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;
+                background:var(--surface2);border:1px solid var(--border);
+                border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+      <input id="dlUrlInput" readonly value="${url}"
+             style="flex:1;background:transparent;border:none;
+                    font-family:var(--font-mono);font-size:11px;
+                    color:var(--text);outline:none;min-width:0;" />
+      <button id="copyUrlBtn" class="btn btn-primary" style="padding:6px 12px;font-size:12px;flex-shrink:0;">
+        <i class="ri-clipboard-line"></i> Copy
+      </button>
+    </div>
+
+    <div class="tg-save-steps">
+      <div class="tg-step">
+        <span class="tg-step-num">1</span>
+        <span><strong>Copy</strong> ကိုနှိပ်ပြီး link ကို copy ကူးပါ</span>
+      </div>
+      <div class="tg-step">
+        <span class="tg-step-num">2</span>
+        <span>Chrome / Safari browser ဖွင့်ပြီး link paste လုပ်ပါ</span>
+      </div>
+      <div class="tg-step">
+        <span class="tg-step-num">3</span>
+        <span>File auto-download ဆင်းသွားပါလိမ့်မည် <span style="opacity:.6;">(1 hr မှသာ ရနိုင်သည်)</span></span>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <a href="${url}" target="_blank" class="btn btn-primary"
+         style="flex:1;justify-content:center;text-decoration:none;">
+        <i class="ri-external-link-line"></i> Open Link
+      </a>
+      <button class="btn btn-ghost modal-close-btn" data-modal="export-modal" style="flex:1;justify-content:center;">
+        Close
+      </button>
+    </div>
+  `;
+
+  $('copyUrlBtn').addEventListener('click', () => {
+    navigator.clipboard.writeText(url).then(() => {
+      $('copyUrlBtn').innerHTML = '<i class="ri-check-line"></i> Copied!';
+      setTimeout(() => { $('copyUrlBtn').innerHTML = '<i class="ri-clipboard-line"></i> Copy'; }, 2000);
+    }).catch(() => {
+      $('dlUrlInput').select();
+    });
+  });
+}
+
+/* ---- Show base64 long-press fallback (last resort) ---- */
+function showBase64Fallback(blob, filename) {
   const reader = new FileReader();
   reader.onload = () => {
-    const base64 = reader.result; // full data URI
+    const dataUri = reader.result;
     const box = $('exportModalBox');
     box.innerHTML = `
       <div class="modal-head">
-        <h3 style="font-size:15px;"><i class="ri-download-cloud-2-line"></i> Save Your File</h3>
-        <button class="btn btn-ghost icon-btn modal-close-btn" data-modal="export-modal"><i class="ri-close-line"></i></button>
+        <h3><i class="ri-save-line"></i> Save File</h3>
+        <button class="btn btn-ghost icon-btn modal-close-btn" data-modal="export-modal">
+          <i class="ri-close-line"></i>
+        </button>
       </div>
+
+      <p style="font-size:13px;color:var(--text2);margin:0 0 14px;line-height:1.6;">
+        Telegram မှ direct download မရပါ။ အောက်ပါ နည်းလမ်းကို သုံးပါ:
+      </p>
+
+      <a href="${dataUri}" download="${filename}"
+         style="display:flex;align-items:center;justify-content:center;gap:10px;
+                padding:14px;border-radius:12px;text-decoration:none;
+                background:linear-gradient(135deg,#0b84ff,#0055cc);
+                color:white;font-weight:700;font-size:14px;
+                box-shadow:0 4px 16px rgba(11,132,255,.4);margin-bottom:14px;">
+        <i class="ri-download-2-line" style="font-size:20px;"></i>
+        Download ${filename}
+      </a>
 
       <div class="tg-save-steps">
         <div class="tg-step">
           <span class="tg-step-num">1</span>
-          <span>အောက်မှာရှိတဲ့ <strong>Download Link</strong> ကိုနှိပ်ပါ</span>
+          <span>အပေါ် <strong>Download</strong> button ကို <strong>ဖိထားပါ</strong> (Long press)</span>
         </div>
         <div class="tg-step">
           <span class="tg-step-num">2</span>
-          <span>Link ပေါ်မှာ <strong>ဖိထားပါ (Long press)</strong></span>
+          <span><strong>"Download link"</strong> သို့မဟုတ် <strong>"Save"</strong> ကိုရွေးပါ</span>
         </div>
-        <div class="tg-step">
-          <span class="tg-step-num">3</span>
-          <span><strong>"Save / Download"</strong> ကိုရွေးပါ</span>
+        <div class="tg-step" style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.3);">
+          <span class="tg-step-num" style="background:#f59e0b;">!</span>
+          <span>မရပါက <strong>(•••) → Open in Browser</strong> → Chrome မှ download လုပ်ပါ</span>
         </div>
       </div>
 
-      <a id="base64Link" href="${base64}" download="${filename}"
-         style="display:flex;align-items:center;justify-content:center;gap:8px;
-                margin:14px 0;padding:14px;border-radius:12px;
-                background:linear-gradient(135deg,#0b84ff,#0060c0);
-                color:white;font-weight:700;font-size:14px;text-decoration:none;
-                box-shadow:0 4px 16px rgba(11,132,255,.4);">
-        <i class="ri-file-download-line" style="font-size:18px;"></i>
-        Download ${filename}
-      </a>
-
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:12px;color:var(--text2);line-height:1.6;">
-        <strong style="color:var(--text);">📱 Telegram မှာ Download မရပါက:</strong><br>
-        အပေါ်မှ <strong>(•••)</strong> ကိုနှိပ်ပြီး
-        <strong>"Open in Browser"</strong> ကိုရွေးကာ
-        Chrome / Safari မှ Download လုပ်ပါ
-      </div>
-
-      <div class="modal-footer" style="margin-top:12px;">
-        <button class="btn btn-ghost modal-close-btn" data-modal="export-modal" style="width:100%;justify-content:center;">Close</button>
+      <div class="modal-footer">
+        <button class="btn btn-ghost modal-close-btn" data-modal="export-modal"
+                style="width:100%;justify-content:center;">Close</button>
       </div>
     `;
-
-    // Also try anchor click immediately (may work in some TG versions)
-    setTimeout(() => {
-      const link = $('base64Link');
-      if (link) link.click();
-    }, 300);
   };
   reader.readAsDataURL(blob);
 }
 
-/* ---- Master export function ---- */
+/* ---- Master export handler ---- */
 async function smartExport(type) {
-  closeModal('export-modal');
-
   const blob     = type === 'json' ? buildJsonBlob() : buildTgsBlob();
   const filename = type === 'json' ? 'lottie-edited.json' : 'animation.tgs';
-
   if (!blob) return;
 
-  // Show a loading state briefly
   const box = $('exportModalBox');
-  box.innerHTML = `<div style="text-align:center;padding:32px 0;">
-    <div class="spinner" style="margin:0 auto 12px;"></div>
-    <div style="font-size:13px;color:var(--text2);">Preparing file...</div>
-  </div>`;
+
+  if (!isRestrictedWebView()) {
+    const ok = anchorDownload(blob, filename);
+    if (ok) { closeModal('export-modal'); return; }
+  }
+
+  box.innerHTML = `
+    <div style="text-align:center;padding:40px 0;">
+      <div class="spinner" style="margin:0 auto 14px;"></div>
+      <div style="font-size:14px;font-weight:600;color:var(--text);">Preparing file...</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:6px;">Download link ပြင်ဆင်နေသည်</div>
+    </div>
+  `;
   openModal('export-modal');
+  await new Promise(r => setTimeout(r, 80));
 
-  await new Promise(r => setTimeout(r, 100)); // let modal render
+  const shared = await tryWebShare(blob, filename);
+  if (shared === true)        { closeModal('export-modal'); return; }
+  if (shared === 'cancelled') { closeModal('export-modal'); return; }
 
-  // 1. Try Web Share (best for Telegram WebView)
-  const shareResult = await tryWebShare(blob, filename);
-  if (shareResult === true) { closeModal('export-modal'); return; }
-  if (shareResult === 'cancelled') { closeModal('export-modal'); return; }
+  /* FIX: use the real server upload instead of the dead Cloudflare placeholder */
+  const serverUrl = await uploadToServer(blob, filename);
+  if (serverUrl) {
+    showDownloadLink(serverUrl, filename);
+    return;
+  }
 
-  // 2. Try standard anchor download
-  const anchorOk = tryAnchorDownload(blob, filename);
-  if (anchorOk) { closeModal('export-modal'); return; }
-
-  // 3. Try opening blob in new tab
-  const tabOk = tryOpenBlobTab(blob);
-  if (tabOk) { closeModal('export-modal'); return; }
-
-  // 4. All failed → show base64 fallback with long-press link
-  showBase64Fallback(blob, filename, type);
+  showBase64Fallback(blob, filename);
 }
 
-/* ---- Export modal entry point ---- */
+/* ---- Export button ---- */
 $('exportMenuBtn').addEventListener('click', () => {
   if (!animData) return alert('Load a Lottie file first.');
   const box = $('exportModalBox');
+  const inTg = isRestrictedWebView();
 
   box.innerHTML = `
     <div class="export-icon"><i class="ri-download-cloud-2-line"></i></div>
     <div class="export-title">Export Animation</div>
-    <p class="export-sub" style="text-align:center;">Format ကိုရွေးပြီး Download ဆွဲပါ</p>
+    <p class="export-sub" style="text-align:center;margin-bottom:16px;">
+      Format ကိုရွေးပြီး Download ဆွဲပါ
+    </p>
 
-    <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
-      <button id="expJsonBtn" class="btn" style="border:1.5px solid var(--blue);color:var(--blue);width:100%;justify-content:center;padding:13px;font-size:14px;font-weight:600;">
-        <i class="ri-file-code-line"></i> JSON &nbsp;<span style="font-size:11px;opacity:.7;">(After Effects / Web)</span>
+    ${inTg ? `
+    <div style="padding:10px 14px;background:rgba(42,171,238,.1);border:1px solid rgba(42,171,238,.3);
+                border-radius:10px;font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">
+      <i class="ri-telegram-line" style="color:#2AABEE;"></i>
+      <strong style="color:var(--text);">Telegram မှဖွင့်ထားသည်</strong> —
+      Download link တစ်ခုပေးပါမည်။ Chrome/Safari မှ ဖွင့်ပြီး save လုပ်နိုင်သည်။
+    </div>` : ''}
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button id="expJsonBtn" class="btn"
+              style="border:1.5px solid var(--blue);color:var(--blue);
+                     width:100%;justify-content:center;padding:13px;font-size:14px;font-weight:600;">
+        <i class="ri-file-code-line"></i> JSON
+        <span style="font-size:11px;opacity:.6;margin-left:4px;">(After Effects / Web)</span>
       </button>
-      <button id="expTgsBtn" class="btn btn-primary" style="background:linear-gradient(135deg,#2AABEE,#1a8bbf);border:none;width:100%;justify-content:center;padding:13px;font-size:14px;font-weight:600;box-shadow:0 4px 14px rgba(42,171,238,.4);">
-        <i class="ri-telegram-line"></i> TGS &nbsp;<span style="font-size:11px;opacity:.85;">(Telegram Sticker)</span>
+      <button id="expTgsBtn" class="btn btn-primary"
+              style="background:linear-gradient(135deg,#2AABEE,#1a8bbf);border:none;
+                     width:100%;justify-content:center;padding:13px;font-size:14px;font-weight:600;
+                     box-shadow:0 4px 14px rgba(42,171,238,.4);">
+        <i class="ri-telegram-line"></i> TGS
+        <span style="font-size:11px;opacity:.85;margin-left:4px;">(Telegram Sticker)</span>
       </button>
     </div>
 
-    <div id="shareHint" style="margin-top:14px;padding:10px 14px;background:rgba(11,132,255,.07);border:1px solid rgba(11,132,255,.15);border-radius:10px;font-size:12px;color:var(--text2);line-height:1.6;display:none;">
-      <i class="ri-information-line" style="color:var(--blue);"></i>
-      <strong style="color:var(--text);">Telegram မှဖွင့်သောကြောင့်</strong> Share sheet (System share) ဖြင့် save မည်ဖြစ်သည်။ မရပါကbase64 link ဖြင့်ပေးပါမည်။
-    </div>
-
-    <div class="modal-footer" style="margin-top:12px;">
-      <button class="btn btn-ghost modal-close-btn" data-modal="export-modal" style="width:100%;justify-content:center;">Cancel</button>
+    <div class="modal-footer" style="margin-top:14px;">
+      <button class="btn btn-ghost modal-close-btn" data-modal="export-modal"
+              style="width:100%;justify-content:center;">Cancel</button>
     </div>
   `;
 
-  // Show hint if in TG WebView
-  if (isTelegramWebView() || isAnyWebView()) {
-    $('shareHint').style.display = 'block';
-  }
-
   $('expJsonBtn').addEventListener('click', () => smartExport('json'));
   $('expTgsBtn').addEventListener('click',  () => smartExport('tgs'));
-
   openModal('export-modal');
 });
 
@@ -1346,20 +1396,17 @@ function closeModal(id) {
   $(id).setAttribute('aria-hidden', 'true');
 }
 
-// Wire all .modal-close-btn elements (including dynamically added)
 document.addEventListener('click', e => {
   const btn = e.target.closest('.modal-close-btn');
   if (!btn) return;
   const modalId = btn.dataset.modal;
   if (modalId) closeModal(modalId);
   else {
-    // Close parent modal
     const overlay = btn.closest('.modal-overlay');
     if (overlay) closeModal(overlay.id);
   }
 });
 
-// Close modal on overlay click
 $$('.modal-overlay').forEach(overlay => {
   overlay.addEventListener('click', e => {
     if (e.target === overlay) closeModal(overlay.id);
@@ -1392,20 +1439,17 @@ $('telegramBtn').addEventListener('click', () => window.open('https://t.me/Magic
    ============================================= */
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Dark mode
   const savedTheme = localStorage.getItem('mm_theme');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   applyThemeMode(savedTheme === 'dark' || (savedTheme === null && prefersDark));
 
-  // Embedded browser warning
+  /* FIX: isEmbedded() is now defined above — no longer crashes here */
   if (isEmbedded()) browserWarning.classList.add('visible');
 
-  // Initial UI state
   updateHistoryButtons();
   renderThemes();
   $('frameLabel').textContent = '0';
 
-  // Handle logo fallback
   const logoImg = document.querySelector('.brand-logo img');
   if (logoImg) {
     logoImg.onerror = () => {
