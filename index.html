@@ -3,250 +3,261 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Magic Mall Lottie Editor</title>
-  <meta name="theme-color" content="#eaf3ff">
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.10.2/lottie.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+  <title>Magic Mall · Lottie Colour Editor</title>
+  <meta name="theme-color" content="#0b84ff">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-
   <link rel="stylesheet" href="styles.css">
-  
 </head>
 <body>
-  
+
   <div id="dropOverlay">
-    <i class="ri-drag-drop-line" style="font-size: 64px; margin-bottom: 16px;"></i>
-    ဒီနေရာမှာFileထည့်ပါ
+    <div class="drop-inner">
+      <i class="ri-drag-drop-line"></i>
+      <span>Drop your Lottie file here</span>
+      <small>.json or .tgs supported</small>
+    </div>
   </div>
 
   <header>
     <div class="brand">
-      <img src="logo.svg" class="app-logo" alt="Logo">
-      Magic Mall GameShop
-      <span>ColourEditor</span>
+      <div class="brand-logo">
+        <img src="logo.svg" alt="Logo" onerror="this.style.display='none'">
+        <i class="ri-magic-line" style="display:none" id="fallbackIcon"></i>
+      </div>
+      <div class="brand-text">
+        <span class="brand-name">Magic Mall</span>
+        <span class="brand-sub">Colour Editor</span>
+      </div>
     </div>
-    <div class="actions">
-      <button id="telegramBtn" class="primary animated-btn" title="Join Telegram Channel">
-        <i class="ri-telegram-fill"></i> Channel
+
+    <div class="toolbar">
+      <button id="telegramBtn" class="btn btn-tg" title="Join Telegram">
+        <i class="ri-telegram-fill"></i><span>Channel</span>
       </button>
-      
-      <label class="btn-label primary">
-        <i class="ri-upload-cloud-line"></i> Open
+      <label class="btn btn-primary" title="Open file">
+        <i class="ri-folder-open-line"></i><span>Open</span>
         <input id="fileInput" type="file" accept=".json,.tgs" />
       </label>
-      <button id="undoBtn" class="ghost"><i class="ri-arrow-go-back-line"></i></button>
-      <button id="redoBtn" class="ghost"><i class="ri-arrow-go-forward-line"></i></button>
-      <button id="settingsBtn" class="ghost" title="Animation Settings"><i class="ri-settings-3-line"></i></button>
-      <button id="tgsScanBtn" class="ghost" title="Check TGS Compatibility">
-        <i class="ri-telegram-line"></i> TGS Scan
+      <div class="btn-group">
+        <button id="undoBtn" class="btn btn-ghost icon-btn" title="Undo (Ctrl+Z)"><i class="ri-arrow-go-back-line"></i></button>
+        <button id="redoBtn" class="btn btn-ghost icon-btn" title="Redo (Ctrl+Shift+Z)"><i class="ri-arrow-go-forward-line"></i></button>
+      </div>
+      <div class="btn-group">
+        <button id="settingsBtn" class="btn btn-ghost icon-btn" title="Animation Settings"><i class="ri-settings-3-line"></i></button>
+        <button id="tgsScanBtn" class="btn btn-ghost icon-btn" title="TGS Compatibility Scan"><i class="ri-telegram-line"></i></button>
+        <button id="darkToggle" class="btn btn-ghost icon-btn"><i class="ri-moon-line"></i></button>
+      </div>
+      <button id="exportMenuBtn" class="btn btn-export">
+        <i class="ri-download-2-line"></i><span>Export</span>
       </button>
-      <button id="exportMenuBtn"><i class="ri-download-2-line"></i> Save</button>
-      <button id="darkToggle"><i class="ri-moon-line"></i></button>
     </div>
   </header>
-  
-  <div id="browserWarning" style="background-color: #fff3cd; color: #856404; padding: 10px 20px; text-align: center; border-radius: 8px; margin: 0 12px; font-size: 13px; display: none; border: 1px solid #ffeeba;">
-      ⚠️ သတိပေးချက်!  ဒီ browserမှာ Downloadလုပ်လို့မရပါ။ အပေါ်က (•••) ကိုနှိပ်ပြီး အခြား Browserကနေဖွင့်ပါ။
+
+  <div id="browserWarning">
+    <i class="ri-alert-line"></i>
+    ဤ Browser တွင် Download လုပ်ရန် (•••) နှိပ်ပြီး Chrome/Safari/Firefox ကနေဖွင့်ပါ။
   </div>
-  
+
   <main>
-    <section class="card preview-section">
-      
-      <div id="loadingIndicator" style="position: absolute; inset: 0; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(5px); z-index: 50; display: none; align-items: center; justify-content: center; flex-direction: column;">
-          <div id="loaderAnim" style="width: 100px; height: 100px;"></div>
-          <p style="color: var(--primary); font-weight: 600; margin-top: 10px;">Loading လုပ်နေပါတယ်...</p>
+    <!-- LEFT: Preview -->
+    <section class="panel preview-panel">
+      <div class="panel-header">
+        <span class="panel-title"><i class="ri-eye-line"></i> Preview</span>
+        <div class="anim-info" id="animInfo"></div>
       </div>
-      <div class="canvas-container">
-        <div id="preview-placeholder" style="color:var(--text-muted);text-align:center; position:absolute;">
-          <i class="ri-image-add-line" style="font-size:32px;opacity:0.5"></i><br>Open a JSON/TGS file
+
+      <div class="canvas-wrap">
+        <div id="loadingOverlay">
+          <div class="spinner"></div>
+          <span>Loading...</span>
+        </div>
+        <div id="preview-placeholder">
+          <i class="ri-image-add-line"></i>
+          <p>Open a JSON or TGS file</p>
+          <small>or drag & drop anywhere</small>
         </div>
         <div id="anim"></div>
       </div>
 
-      <div class="controls-bar">
-        <div class="timeline">
-          <button id="playPauseBtn" class="primary" style="padding:6px 12px"><i class="ri-play-fill"></i></button>
-          <input id="frameSlider" type="range" value="0" min="0" max="100" disabled />
-          <div class="muted" style="width:70px; text-align:right; font-size:11px"> 
-             <span id="frameLabel">0</span> / <span id="totalLabel">0</span> 
-          </div>
+      <div class="player-bar">
+        <button id="playPauseBtn" class="btn btn-play"><i class="ri-play-fill"></i></button>
+        <input id="frameSlider" type="range" value="0" min="0" max="100" disabled />
+        <div class="frame-counter">
+          <span id="frameLabel">0</span><span class="sep">/</span><span id="totalLabel">0</span>
         </div>
-        
- <div class="filters-row">
-    <div class="filter-pills">
-        <button class="filter-btn active" data-filter="All">All</button>
-        <button class="filter-btn" data-filter="Fill">Fill</button>
-        <button class="filter-btn" data-filter="Stroke">Stroke</button>
-        <button class="filter-btn" data-filter="Gradient Fill">Gradient Fill</button>
-        <button class="filter-btn" data-filter="Gradient Stroke">Gradient Stroke</button>
-    </div>
-    
-    <div style="display:flex; align-items:center; gap:12px; margin-left:auto;">
-        <div style="display:flex; align-items:center; gap:6px;">
-            <input id="groupDuplicates" type="checkbox" style="accent-color:var(--primary)">
-            <label for="groupDuplicates" style="font-size:11px; color:var(--text-muted); cursor:pointer">Group Colors</label>
-        </div>
+      </div>
 
-        <div style="display:flex; align-items:center; gap:8px; border-left:1px solid var(--surface-border); padding-left:12px;">
-            <input id="gradientToggle" type="checkbox" checked style="accent-color:var(--primary)">
-            <label for="gradientToggle" style="font-size:11px; font-weight:600; color:var(--text); cursor:pointer">Advanced Gradient</label>
+      <div class="filter-bar">
+        <div class="filter-pills" id="filterPills">
+          <button class="pill active" data-filter="All">All</button>
+          <button class="pill" data-filter="Fill">Fill</button>
+          <button class="pill" data-filter="Stroke">Stroke</button>
+          <button class="pill" data-filter="Gradient Fill">Gradient</button>
         </div>
-    </div>
-</div>
+        <div class="filter-opts">
+          <label class="toggle-label">
+            <input id="groupDuplicates" type="checkbox">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span>Group</span>
+          </label>
+          <label class="toggle-label">
+            <input id="gradientToggle" type="checkbox" checked>
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span>Advanced</span>
+          </label>
         </div>
       </div>
     </section>
 
-    <section class="card editor-section">
-      <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('colors')">Colors (<span id="colorStats">0</span>)</button>
-        <button class="tab-btn" onclick="switchTab('themes')">Themes</button>
-        <button class="tab-btn" onclick="switchTab('layers')">Layers</button>
-        <button id="resetColorsBtn" class="danger-btn" style="padding:6px 10px; font-size:12px; margin-left:auto" title="Reset Colors">
-          <i class="ri-refresh-line"></i> Reset
+    <!-- RIGHT: Editor -->
+    <section class="panel editor-panel">
+      <div class="tabs-nav">
+        <button class="tab-btn active" data-tab="colors">
+          <i class="ri-palette-line"></i> Colors <span class="tab-count" id="colorStats">0</span>
+        </button>
+        <button class="tab-btn" data-tab="themes">
+          <i class="ri-bookmark-line"></i> Themes
+        </button>
+        <button class="tab-btn" data-tab="layers">
+          <i class="ri-stack-line"></i> Layers
+        </button>
+        <button id="resetColorsBtn" class="btn btn-danger-sm" title="Reset all colors">
+          <i class="ri-refresh-line"></i>
         </button>
       </div>
 
-      <div id="tab-colors" class="tab-content active">
-        <div id="colors">
-            <div class="color-card" data-color-id="1" data-color-type="single">
-                <input type="color" value="#0b84ff" class="color-picker-input">
-                <input type="text" value="#0B84FF" class="hexInput">
-            </div>
-            <div class="color-card" data-color-id="2" data-color-type="gradient">
-                <div class="color-group-badge"><i class="ri-gradienter-line"></i> GRADIENT</div>
-                <div style="width: 100%; height: 40px; border-radius: 6px; background: linear-gradient(90deg, #ff0000 0%, #00ff00 100%); margin-bottom: 6px; cursor: pointer;"></div>
-                <input type="text" value="GRADIENT" class="hexInput" disabled>
-            </div>
-        </div>
+      <!-- Colors Tab -->
+      <div id="tab-colors" class="tab-pane active">
+        <div id="colors"></div>
       </div>
-      
-      <div id="tab-themes" class="tab-content">
-          <button id="saveThemeBtn" class="primary" style="width:100%; margin-bottom:15px;"><i class="ri-save-line"></i>ယခုColorsကိုTheme အနေဖြင့်saveမည်။</button>
-          <div id="themesList">
-              <p style="color:var(--text-muted); font-size:13px; text-align:center;">Saveထားသော Themes မရှိပါ</p>
-          </div>
+
+      <!-- Themes Tab -->
+      <div id="tab-themes" class="tab-pane">
+        <button id="saveThemeBtn" class="btn btn-primary full-width">
+          <i class="ri-save-3-line"></i> Save Current as Theme
+        </button>
+        <div id="themesList" style="margin-top:14px;"></div>
       </div>
-      
-      <div id="tab-layers" class="tab-content">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-           <button id="refreshLayers" style="padding:4px 8px;font-size:11px">Refresh</button>
+
+      <!-- Layers Tab -->
+      <div id="tab-layers" class="tab-pane">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+          <button id="refreshLayers" class="btn btn-ghost" style="font-size:12px;padding:5px 10px;">
+            <i class="ri-refresh-line"></i> Refresh
+          </button>
         </div>
         <div id="layerList"></div>
       </div>
     </section>
   </main>
 
-<div id="gradient-editor-modal" class="modal" aria-hidden="true">
-  <div class="modalCard" style="max-width:720px; width:92%; padding:18px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-      <h3 style="margin:0; font-size:18px;"><i class="ri-gradienter-line"></i> Gradient Editor</h3>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <button id="gradientReverseBtn" class="ghost" title="Reverse gradient"><i class="ri-swap-horizontal-line"></i></button>
-        <button id="gradientResetBtn" class="ghost" title="Reset"><i class="ri-refresh-line"></i></button>
-        <button class="modal-close ghost" style="font-size:13px;">Close</button>
-      </div>
-    </div>
-
-    <div id="gradientEditorContent" style="margin-top:12px; display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap;">
-      <div style="flex:1 1 420px; min-width:280px;">
-        <div id="gradientCanvasWrap" style="padding:12px; border-radius:12px; background:var(--surface); border:1px solid var(--surface-border); box-shadow:var(--shadow);">
-          <div id="gradientBar" style="position:relative; height:56px; border-radius:10px; overflow:hidden; cursor:pointer; user-select:none;">
-            </div>
-          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:13px; color:var(--text-muted);">
-            <div>Drag stops to reposition</div>
-            <div id="gradientPositionsLabel">Positions: —</div>
-          </div>
-        </div>
-
-        <div style="display:flex; gap:8px; margin-top:10px;">
-          <button id="addGradientStop" class="primary" style="padding:8px 10px; font-size:13px;"><i class="ri-add-line"></i> Add Stop</button>
-          <button id="applyGradientChanges" class="primary" style="background:var(--primary); border: none; padding:8px 12px;">Apply to Animation</button>
-          <button id="discardGradientChanges" class="ghost modal-close" style="padding:8px 10px; font-size:13px;">Cancel</button>
+  <!-- ========== GRADIENT EDITOR MODAL ========== -->
+  <div id="gradient-editor-modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box" style="max-width:740px;">
+      <div class="modal-head">
+        <h3><i class="ri-gradienter-line"></i> Gradient Editor</h3>
+        <div style="display:flex;gap:8px;">
+          <button id="gradientReverseBtn" class="btn btn-ghost icon-btn" title="Reverse"><i class="ri-swap-horizontal-line"></i></button>
+          <button id="gradientResetBtn" class="btn btn-ghost icon-btn" title="Reset"><i class="ri-refresh-line"></i></button>
+          <button class="btn btn-ghost icon-btn modal-close-btn" data-modal="gradient-editor-modal"><i class="ri-close-line"></i></button>
         </div>
       </div>
 
-      <div style="width:300px; min-width:230px;">
-        <div style="font-size:13px; color:var(--text-muted); margin-bottom:6px;">Stops</div>
-        
-        <div id="gradientStopsList" style="display:flex; flex-direction:column; gap:8px; max-height:360px; overflow:auto; padding-right:6px;">
-            </div>
-
-        <div style="margin-top:12px; border-top:1px dashed var(--surface-border); padding-top:10px; font-size:13px; color:var(--text-muted);">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <div>Preview Alpha</div>
-            <input id="gradientAlpha" type="range" min="0" max="1" step="0.01" value="1" style="width:120px;">
+      <div id="gradientEditorContent">
+        <div class="grad-left">
+          <div class="grad-bar-wrap">
+            <div id="gradientBar"></div>
           </div>
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div>Stop Count</div>
-            <div id="stopCountLabel">0</div>
+          <div class="grad-bar-info">
+            <span>Drag stops · Click bar to add</span>
+            <span id="gradientPositionsLabel"></span>
+          </div>
+          <div class="grad-actions">
+            <button id="addGradientStop" class="btn btn-ghost"><i class="ri-add-line"></i> Add Stop</button>
+            <button id="applyGradientChanges" class="btn btn-primary"><i class="ri-check-line"></i> Apply</button>
+            <button id="discardGradientChanges" class="btn btn-ghost modal-close-btn" data-modal="gradient-editor-modal">Cancel</button>
+          </div>
+        </div>
+
+        <div class="grad-right">
+          <div class="grad-stops-header">
+            <span>Color Stops</span>
+            <span id="stopCountLabel" class="badge">0</span>
+          </div>
+          <div id="gradientStopsList"></div>
+          <div class="grad-alpha-row">
+            <span>Preview Alpha</span>
+            <input id="gradientAlpha" type="range" min="0" max="1" step="0.01" value="1">
           </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="modal-btn-row" style="margin-top:14px;">
-      <button class="ghost modal-close" style="width:100%;">Close</button>
+  <!-- ========== EXPORT MODAL ========== -->
+  <div id="export-modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box" id="exportModalBox"></div>
+  </div>
+
+  <!-- ========== TGS SCAN MODAL ========== -->
+  <div id="tgs-scan-modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3><i class="ri-telegram-line"></i> TGS Compatibility</h3>
+        <button class="btn btn-ghost icon-btn modal-close-btn" data-modal="tgs-scan-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <p class="muted-text">Checking against Telegram sticker requirements</p>
+      <div id="tgs-results"></div>
+      <p class="muted-text" style="font-size:11px;margin-top:12px;">
+        ⚠️ File size (64KB limit) must be checked manually after export.
+      </p>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="tgsExportBtn"><i class="ri-download-2-line"></i> Export Now</button>
+        <button class="btn btn-ghost modal-close-btn" data-modal="tgs-scan-modal">Close</button>
+      </div>
     </div>
   </div>
-</div>
 
-  <div id="export-modal" class="modal" aria-hidden="true">
-    <div class="modalCard"></div>
-  </div>
-  
-  <div id="tgs-scan-modal" class="modal" aria-hidden="true">
-    <div class="modalCard">
-        <h3 style="margin-top:0"><i class="ri-telegram-line"></i> Telegram Stickerစစ်ဆေးခြင်း</h3>
-        <p class="muted" style="margin-top:-10px; font-size:13px;">Telegram ၏ sticker လိုအပ်ချက်များနှင့်ကိုက်ညီမှု့ရှိမရှိစစ်ဆေးနေပါတယ်။</p>
-        <div id="tgs-results"></div>
-        <p class="muted" style="font-size:11px; margin-top:15px;">သတိ ပေးချက် Sticker File Size 64 KB ထက်ကြီးမကြီးမစစ်ဆေးနိုင်သောကြောင့် ကိုယ့်ဘာသာကြည့်ပါ☺️။</p>
-        <div class="modal-btn-row">
-            <button class="primary modal-close" style="background:#2AABEE; border:none;">
-                Exportထုတ်မည်
-            </button>
-            <button class="ghost modal-close" style="color:var(--text-muted); border-color:var(--surface-border)">
-                Close
-            </button>
+  <!-- ========== SETTINGS MODAL ========== -->
+  <div id="settings-modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3><i class="ri-settings-3-line"></i> Animation Settings</h3>
+        <button class="btn btn-ghost icon-btn modal-close-btn" data-modal="settings-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <div class="settings-grid">
+        <div class="setting-item">
+          <label>Width (px)</label>
+          <input type="number" id="set-w" class="setting-input" min="1">
         </div>
-    </div>
-  </div>
- 
-  <div id="settings-modal" class="modal" aria-hidden="true">
-    <div class="modalCard">
-      <h3 style="margin-top:0">Animation Settings</h3>
-      <div class="setting-row">
-        <label>Width (px)</label>
-        <input type="number" id="set-w" class="setting-input">
+        <div class="setting-item">
+          <label>Height (px)</label>
+          <input type="number" id="set-h" class="setting-input" min="1">
+        </div>
+        <div class="setting-item">
+          <label>Frame Rate</label>
+          <input type="number" id="set-fr" class="setting-input" min="1">
+        </div>
+        <div class="setting-item">
+          <label>Scale (%)</label>
+          <input type="number" id="set-scale" class="setting-input" value="100" min="1">
+        </div>
       </div>
-      <div class="setting-row">
-        <label>Height (px)</label>
-        <input type="number" id="set-h" class="setting-input">
-      </div>
-      <div class="setting-row">
-        <label>Frame Rate (fps)</label>
-        <input type="number" id="set-fr" class="setting-input">
-      </div>
-      <div class="setting-row">
-        <label>Scale (%)</label>
-        <input type="number" id="set-scale" class="setting-input" value="100">
-      </div>
-      <div style="margin-top:20px; display:flex; gap:10px">
-        <button id="applySettings" class="primary" style="flex:1">Apply</button>
-        <button class="ghost modal-close settings-close" style="flex:1">Cancel</button>
+      <div class="modal-footer">
+        <button id="applySettings" class="btn btn-primary"><i class="ri-check-line"></i> Apply</button>
+        <button class="btn btn-ghost modal-close-btn" data-modal="settings-modal">Cancel</button>
       </div>
     </div>
   </div>
 
-  <div style="text-align:center; font-size:11px; color:var(--text-muted); padding-bottom:12px">
-  Created By @Magic_Mall_GameShop © 2025
-</div>
+  <footer>
+    Created by <a href="https://t.me/Magic_Mall_Game_Shop" target="_blank">@Magic_Mall_GameShop</a> © 2025
+  </footer>
 
-<script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
-
-<script src="script.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
