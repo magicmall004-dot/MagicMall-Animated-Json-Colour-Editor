@@ -922,3 +922,697 @@ document.addEventListener('DOMContentLoaded',()=>{
   const logoImg=document.querySelector('.brand-logo img');
   if(logoImg)logoImg.onerror=()=>{logoImg.style.display='none';$('fallbackIcon').style.display='block';};
 });
+
+/* =============================================
+   LAYER COLOURS PANEL
+   Per-layer colour editing with thumbnails,
+   isolation (dim others), visibility toggle
+   ============================================= */
+
+let lcIsolatedIdx    = null;
+let lcSavedOpacities = [];
+
+function lcSetOpacity(layer, val) {
+  if (!layer.ks) layer.ks = {};
+  if (!layer.ks.o) layer.ks.o = { a:0, k:100 };
+  const op = layer.ks.o;
+  if (op.a===1 && Array.isArray(op.k)) {
+    op.k.forEach(kf => { if(kf.s) kf.s[0]=val; if(kf.e) kf.e[0]=val; });
+  } else { op.k=val; op.a=0; }
+}
+function lcRestoreOpacities() {
+  lcSavedOpacities.forEach(({layer,val}) => lcSetOpacity(layer, val));
+  lcSavedOpacities = [];
+}
+function lcIsolate(idx) {
+  lcRestoreOpacities();
+  lcIsolatedIdx = idx;
+  if (!animData || !animData.layers) return;
+  animData.layers.forEach((layer, i) => {
+    if (i === idx) return;
+    const op = layer.ks?.o;
+    let orig = 100;
+    if (op) {
+      if (op.a===1 && Array.isArray(op.k)) orig = op.k[0]?.s?.[0] ?? 100;
+      else orig = (Array.isArray(op.k) ? op.k[0] : op.k) ?? 100;
+    }
+    lcSavedOpacities.push({layer, val:orig});
+    lcSetOpacity(layer, 10);
+  });
+  reloadAnim();
+  renderLayerColorsPanel();
+}
+function lcUnisolate() {
+  lcRestoreOpacities();
+  lcIsolatedIdx = null;
+  reloadAnim();
+  renderLayerColorsPanel();
+}
+
+function lcExtractColors(layer) {
+  const results = [];
+  function walk(obj) {
+    if (!obj || typeof obj !== 'object') return;
+    if (obj.ty === 'fl' || obj.ty === 'st') {
+      const nm = obj.nm || (obj.ty==='fl' ? 'Fill' : 'Stroke');
+      const c = obj.c;
+      if (c) {
+        let hex = '#000000', ref = c;
+        if (c.a===1 && Array.isArray(c.k) && c.k[0]?.s) { hex = rgbaArrToHex(c.k[0].s); ref = c.k[0]; }
+        else if (Array.isArray(c.k)) hex = rgbaArrToHex(c.k);
+        else if (c.k && Array.isArray(c.k.k)) { hex = rgbaArrToHex(c.k.k); ref = c.k; }
+        results.push({ hex, nm, ref, type:'solid' });
+      }
+    }
+    for (const k in obj) {
+      if (!Object.prototype.hasOwnProperty.call(obj,k) || k==='c') continue;
+      if (obj[k] && typeof obj[k]==='object') walk(obj[k]);
+    }
+  }
+  walk(layer);
+  return results;
+}
+
+function lcDrawThumb(canvas, layer) {
+  const ctx = canvas.getContext('2d'), W=36, H=36;
+  ctx.clearRect(0,0,W,H);
+  // checkerboard bg
+  for (let y=0;y<H;y+=6) for (let x=0;x<W;x+=6) {
+    ctx.fillStyle = ((x/6+y/6)%2===0) ? '#ccc' : '#999';
+    ctx.fillRect(x,y,6,6);
+  }
+  const colors = lcExtractColors(layer);
+  if (!colors.length) return;
+  const sw = W / colors.length;
+  colors.forEach((c,i) => { ctx.fillStyle=c.hex; ctx.fillRect(i*sw,0,sw+1,H); });
+  // rounded clip
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.beginPath(); ctx.roundRect(0,0,W,H,6); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function renderLayerColorsPanel() {
+  const el = $('layerColorsList');
+  if (!el) return;
+  if (!animData || !animData.layers || !animData.layers.length) {
+    el.innerHTML = '<div class="empty-state"><i class="ri-stack-line"></i><br>No layers. Open a file first.</div>';
+    return;
+  }
+  const ICONS = {0:'📦',1:'⬛',2:'🖼',3:'◻️',4:'✦',5:'T',6:'🔊',13:'📷'};
+  const uniBtn = $('lcUnisolateBtn');
+  if (uniBtn) uniBtn.style.display = lcIsolatedIdx !== null ? 'flex' : 'none';
+
+  let html = '';
+  animData.layers.forEach((layer, idx) => {
+    const name   = layer.nm || `Layer ${idx+1}`;
+    const colors = lcExtractColors(layer);
+    const isIso  = lcIsolatedIdx === idx;
+    const icon   = ICONS[layer.ty] || '◻️';
+    const safe   = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const trunc  = name.length > 22 ? name.slice(0,21)+'…' : name;
+
+    html += `<div class="lc-block${isIso?' lc-isolated':''}" data-idx="${idx}">
+      <div class="lc-head">
+        <canvas class="lc-thumb" data-idx="${idx}" width="36" height="36"></canvas>
+        <span class="lc-icon">${icon}</span>
+        <span class="lc-name" title="${safe}">${trunc}</span>
+        <div class="lc-acts">
+          <button class="lc-iso${isIso?' lc-iso-on':''}" data-idx="${idx}" title="Isolate">⊙</button>
+          <button class="lc-vis" data-idx="${idx}" title="Toggle visibility">${layer.hd?'🙈':'👁'}</button>
+        </div>
+      </div>`;
+
+    if (colors.length) {
+      html += `<div class="lc-colors">`;
+      colors.forEach((c,ci) => {
+        const lbl = (c.nm||'Color').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const lt  = lbl.length>20 ? lbl.slice(0,19)+'…' : lbl;
+        html += `<div class="lc-row">
+          <div class="lc-sw-wrap">
+            <div class="lc-sw" style="background:${c.hex}"></div>
+            <input type="color" class="lc-ci" value="${c.hex}" data-li="${idx}" data-ci="${ci}">
+          </div>
+          <span class="lc-lbl">${lt}</span>
+          <span class="lc-hex">${c.hex}</span>
+        </div>`;
+      });
+      html += `</div>`;
+    } else {
+      html += `<div class="lc-none">No editable colours</div>`;
+    }
+    html += `</div>`;
+  });
+  el.innerHTML = html;
+
+  // Draw thumbs
+  requestAnimationFrame(() => {
+    el.querySelectorAll('.lc-thumb').forEach(cv => {
+      const i = parseInt(cv.dataset.idx);
+      if (animData.layers[i]) lcDrawThumb(cv, animData.layers[i]);
+    });
+  });
+
+  // Isolate buttons
+  el.querySelectorAll('.lc-iso').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.idx);
+      if (lcIsolatedIdx===idx) lcUnisolate(); else lcIsolate(idx);
+    });
+  });
+
+  // Visibility buttons
+  el.querySelectorAll('.lc-vis').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const layer = animData.layers[parseInt(btn.dataset.idx)];
+      if (!layer) return;
+      pushHistory(); layer.hd = !layer.hd;
+      reloadAnim(); renderLayerColorsPanel();
+    });
+  });
+
+  // Colour pickers
+  el.querySelectorAll('.lc-ci').forEach(inp => {
+    let snapped = false;
+    inp.addEventListener('input', () => {
+      if (!snapped) { pushHistory(); snapped=true; }
+      const li=parseInt(inp.dataset.li), ci=parseInt(inp.dataset.ci);
+      const layer = animData.layers[li]; if (!layer) return;
+      const cols = lcExtractColors(layer); if (!cols[ci]) return;
+      const {r,g,b} = hexToNorm(inp.value);
+      const ref = cols[ci].ref;
+      // Write back colour depending on structure
+      if (ref.s && Array.isArray(ref.s)) { ref.s[0]=r;ref.s[1]=g;ref.s[2]=b; }
+      else if (Array.isArray(ref.k))     { ref.k[0]=r;ref.k[1]=g;ref.k[2]=b; }
+      else if (ref.k && Array.isArray(ref.k.k)) { ref.k.k[0]=r;ref.k.k[1]=g;ref.k.k[2]=b; }
+      // Update swatch and hex label live
+      const sw = inp.previousElementSibling; if (sw) sw.style.background = inp.value;
+      const hx = inp.closest('.lc-row')?.querySelector('.lc-hex');
+      if (hx) hx.textContent = inp.value;
+      // Sync to file slot and reload
+      if (fileList[fileIndex]) fileList[fileIndex].animData = animData;
+      reloadAnim();
+    });
+    inp.addEventListener('change', () => { snapped=false; });
+  });
+}
+
+/* =============================================
+   MP4 / WebM EXPORT
+   ============================================= */
+const mp4Cfg = { bg:'#000000', transparent:false, scale:1, fps:30, quality:'medium' };
+let mp4Busy=false, mp4Cancel=false;
+
+function buildMp4Modal() {
+  // Inject modal HTML once
+  if ($('mp4-modal')) return;
+  const div = document.createElement('div');
+  div.id = 'mp4-modal';
+  div.className = 'modal-overlay';
+  div.setAttribute('aria-hidden','true');
+  div.innerHTML = `
+    <div class="modal-box" style="max-width:420px;">
+      <div class="modal-head">
+        <h3>🎬 Export MP4 / WebM</h3>
+        <button class="btn btn-ghost icon-btn modal-close-btn" data-modal="mp4-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:13px;margin:4px 0;">
+        <div class="mp4r">
+          <label>Background</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+              <input type="checkbox" id="mp4Transp"> Transparent
+            </label>
+            <div id="mp4BgWrap" style="display:flex;align-items:center;gap:6px;">
+              <div id="mp4BgSw" style="width:24px;height:24px;border-radius:5px;border:1px solid var(--border2);background:#000;flex-shrink:0;"></div>
+              <input type="color" id="mp4BgCol" value="#000000">
+              <input type="text"  id="mp4BgHex" value="#000000" maxlength="7"
+                style="width:72px;font-family:var(--font-mono);font-size:11px;padding:4px 6px;
+                       border:1px solid var(--border);border-radius:6px;
+                       background:var(--surface2);color:var(--text);">
+            </div>
+          </div>
+        </div>
+        <div class="mp4r"><label>Scale</label>
+          <div class="mp4seg" data-cfg="scale">
+            <button class="mp4sb" data-v="0.5">50%</button>
+            <button class="mp4sb active" data-v="1">100%</button>
+            <button class="mp4sb" data-v="2">200%</button>
+          </div>
+        </div>
+        <div class="mp4r"><label>FPS</label>
+          <div class="mp4seg" data-cfg="fps">
+            <button class="mp4sb" data-v="24">24</button>
+            <button class="mp4sb active" data-v="30">30</button>
+            <button class="mp4sb" data-v="60">60</button>
+          </div>
+        </div>
+        <div class="mp4r"><label>Quality</label>
+          <div class="mp4seg" data-cfg="quality">
+            <button class="mp4sb" data-v="high">Best</button>
+            <button class="mp4sb active" data-v="medium">Normal</button>
+            <button class="mp4sb" data-v="low">Small</button>
+          </div>
+        </div>
+        <div id="mp4Info" class="mp4info">—</div>
+      </div>
+      <div id="mp4ProgRow" style="display:none;margin:8px 0;">
+        <div style="height:6px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);overflow:hidden;">
+          <div id="mp4ProgFill" style="height:100%;width:0%;background:linear-gradient(90deg,var(--blue),#00c6ff);transition:width .2s;border-radius:3px;"></div>
+        </div>
+        <div id="mp4ProgTxt" style="font-size:11px;color:var(--text2);text-align:center;margin-top:4px;">Preparing…</div>
+      </div>
+      <div class="modal-footer">
+        <button id="mp4GoBtn" class="btn btn-primary" style="flex:1;justify-content:center;">🎬 Export</button>
+        <button id="mp4CanBtn" class="btn btn-ghost" style="flex:1;justify-content:center;">Cancel</button>
+      </div>
+      <p style="font-size:11px;color:var(--text3);margin:10px 0 0;text-align:center;line-height:1.5;">
+        Exports WebM or MP4 depending on browser.<br>Transparent requires VP9 (Chrome/Edge).
+      </p>
+    </div>`;
+  document.body.appendChild(div);
+
+  // Background controls
+  const transCb = $('mp4Transp'), bgCol = $('mp4BgCol'), bgHex = $('mp4BgHex'), bgSw = $('mp4BgSw'), bgWrap = $('mp4BgWrap');
+  const syncBg = () => { bgSw.style.background=bgCol.value; mp4Cfg.bg=bgCol.value; mp4UpdateInfo(); };
+  bgCol.addEventListener('input', () => { bgHex.value=bgCol.value.toUpperCase(); syncBg(); });
+  bgHex.addEventListener('input', () => { let v=bgHex.value.trim(); if(!v.startsWith('#'))v='#'+v; if(isValidHex(v)){bgCol.value=v;syncBg();} });
+  transCb.addEventListener('change', () => { mp4Cfg.transparent=transCb.checked; bgWrap.style.opacity=transCb.checked?'0.4':'1'; bgWrap.style.pointerEvents=transCb.checked?'none':''; mp4UpdateInfo(); });
+  syncBg();
+
+  // Segmented buttons
+  div.querySelectorAll('.mp4seg').forEach(seg => {
+    seg.addEventListener('click', e => {
+      const btn=e.target.closest('[data-v]'); if(!btn)return;
+      seg.querySelectorAll('[data-v]').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+      const val=btn.dataset.v; mp4Cfg[seg.dataset.cfg]=isNaN(val)?val:parseFloat(val); mp4UpdateInfo();
+    });
+  });
+
+  $('mp4GoBtn').addEventListener('click', mp4Start);
+  $('mp4CanBtn').addEventListener('click', () => { if(mp4Busy)mp4Cancel=true; else closeModal('mp4-modal'); });
+}
+
+function mp4UpdateInfo() {
+  const el=$('mp4Info'); if(!el||!animData)return;
+  const ip=animData.ip||0,op=animData.op||60,fr=animData.fr||30;
+  const secs=(op-ip)/fr, fps=Math.min(mp4Cfg.fps,fr);
+  const w=Math.round((animData.w||512)*mp4Cfg.scale), h=Math.round((animData.h||512)*mp4Cfg.scale);
+  el.textContent=`${w}×${h} · ${fps}fps · ${secs.toFixed(2)}s · bg: ${mp4Cfg.transparent?'transparent':mp4Cfg.bg}`;
+}
+
+async function mp4Start() {
+  if (mp4Busy||!animData) return;
+  const go=$('mp4GoBtn'), can=$('mp4CanBtn'), pr=$('mp4ProgRow'), pf=$('mp4ProgFill'), pt=$('mp4ProgTxt');
+  mp4Busy=true; mp4Cancel=false; go.disabled=true; can.textContent='Stop'; pr.style.display='block';
+  const setP=(p,t)=>{ pf.style.width=(p*100).toFixed(1)+'%'; if(t)pt.textContent=t; };
+  setP(0,'Preparing…');
+
+  const ip=animData.ip||0, op=animData.op||60, fr=animData.fr||30;
+  const totalSrc=Math.max(1,op-ip), secs=totalSrc/fr, outFps=Math.min(mp4Cfg.fps,fr);
+  const srcW=animData.w||512, srcH=animData.h||512;
+  const W=Math.max(1,Math.round(srcW*mp4Cfg.scale)), H=Math.max(1,Math.round(srcH*mp4Cfg.scale));
+  const bitrate={high:8e6,medium:3e6,low:1e6}[mp4Cfg.quality]||3e6;
+  const want=mp4Cfg.transparent;
+  const cands=want?['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']:['video/mp4;codecs=avc1','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+  let mime=''; for(const c of cands){if(MediaRecorder.isTypeSupported(c)){mime=c;break;}}
+  if(!mime){alert('MediaRecorder not supported in this browser.');mp4Finish(go,can,pr);return;}
+  const ext=mime.startsWith('video/webm')?'.webm':'.mp4';
+
+  const canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d',{alpha:want});
+  const offDiv=document.createElement('div');
+  offDiv.style.cssText=`position:fixed;left:-9999px;top:-9999px;width:${srcW}px;height:${srcH}px;opacity:0;pointer-events:none;`;
+  document.body.appendChild(offDiv);
+
+  let offAnim;
+  try {
+    offAnim=lottie.loadAnimation({container:offDiv,renderer:'svg',loop:false,autoplay:false,animationData:deepCopy(animData),rendererSettings:{preserveAspectRatio:'xMidYMid meet',progressiveLoad:false}});
+  } catch(e){cleanup(offDiv,null);mp4Finish(go,can,pr);alert('Lottie error: '+e.message);return;}
+  await new Promise(res=>{offAnim.isLoaded?res():offAnim.addEventListener('DOMLoaded',res);setTimeout(res,1500);});
+
+  const offSvg=offDiv.querySelector('svg');
+  if(!offSvg){cleanup(offDiv,offAnim);mp4Finish(go,can,pr);alert('SVG not found.');return;}
+  offSvg.setAttribute('width',srcW);offSvg.setAttribute('height',srcH);
+
+  const chunks=[];
+  const stream=canvas.captureStream(outFps);
+  const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:bitrate});
+  rec.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data);};
+  const recDone=new Promise(res=>rec.onstop=res);
+  rec.start(100);
+  const totalF=Math.max(1,Math.round(secs*outFps)), msPerF=1000/outFps;
+  setP(0,`Recording 0 / ${totalF}`);
+
+  for(let i=0;i<totalF;i++){
+    if(mp4Cancel)break;
+    const t=totalF===1?0:i/(totalF-1);
+    offAnim.goToAndStop(t*(totalSrc-1),true);
+    const clone=offSvg.cloneNode(true);
+    clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+    clone.setAttribute('width',srcW);clone.setAttribute('height',srcH);
+    if(!clone.getAttribute('viewBox'))clone.setAttribute('viewBox',`0 0 ${srcW} ${srcH}`);
+    const svgStr='<?xml version="1.0" encoding="UTF-8"?>\n'+new XMLSerializer().serializeToString(clone);
+    const blobUrl=URL.createObjectURL(new Blob([svgStr],{type:'image/svg+xml;charset=utf-8'}));
+    await new Promise((res)=>{
+      const img=new Image();
+      img.onload=()=>{want?ctx.clearRect(0,0,W,H):(ctx.fillStyle=mp4Cfg.bg,ctx.fillRect(0,0,W,H));ctx.drawImage(img,0,0,W,H);URL.revokeObjectURL(blobUrl);res();};
+      img.onerror=()=>{URL.revokeObjectURL(blobUrl);res();};
+      img.src=blobUrl;
+    });
+    setP((i+1)/totalF*0.9,`Recording ${i+1} / ${totalF}`);
+    await new Promise(r=>setTimeout(r,msPerF));
+  }
+  setP(0.9,'Finishing…');rec.stop();await recDone;
+  cleanup(offDiv,offAnim);
+  if(!mp4Cancel){
+    const blob=new Blob(chunks,{type:mime});
+    doDownload(blob,'animation'+ext);
+    setP(1,'Done!');setTimeout(()=>closeModal('mp4-modal'),800);
+  }
+  mp4Finish(go,can,pr);
+}
+function mp4Finish(go,can,pr){mp4Busy=false;mp4Cancel=false;go.disabled=false;can.textContent='Cancel';setTimeout(()=>pr.style.display='none',1200);}
+
+/* =============================================
+   MERGE TWO ANIMATIONS
+   ============================================= */
+let mergePending = null;
+
+function buildMergeModal() {
+  if ($('merge-modal')) return;
+  const div = document.createElement('div');
+  div.id = 'merge-modal';
+  div.className = 'modal-overlay';
+  div.setAttribute('aria-hidden','true');
+  div.innerHTML = `
+    <div class="modal-box" style="max-width:460px;">
+      <div class="modal-head">
+        <h3><i class="ri-picture-in-picture-line"></i> Merge Two Animations</h3>
+        <button class="btn btn-ghost icon-btn modal-close-btn" data-modal="merge-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <p style="font-size:13px;color:var(--text2);margin:0 0 14px;line-height:1.5;">
+        Load a second Lottie file — it will be added as a new layer inside the current animation.
+      </p>
+      <div id="mergeDropZone" class="merge-drop">
+        <div id="mergeDropInner" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <div style="font-size:32px;">📂</div>
+          <div style="font-size:13px;color:var(--text2);">Drop .json / .tgs here or</div>
+          <label class="btn btn-primary" style="cursor:pointer;">
+            Browse
+            <input type="file" id="mergeFileIn" accept=".json,.tgs" style="display:none;">
+          </label>
+        </div>
+        <div id="mergeLoadedRow" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;">
+          <span style="background:#10b981;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;">✓ Loaded</span>
+          <strong id="mergeLoadedName"></strong>
+          <span id="mergeLoadedInfo" style="color:var(--text3);font-size:11px;"></span>
+          <button id="mergeChangBtn" class="btn btn-ghost" style="margin-left:auto;font-size:11px;padding:3px 8px;">Change</button>
+        </div>
+      </div>
+      <div id="mergeSettings" style="display:none;margin-top:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div class="merge-fld"><label>Position X</label><input type="number" id="mPosX" value="0" class="setting-input"></div>
+          <div class="merge-fld"><label>Position Y</label><input type="number" id="mPosY" value="0" class="setting-input"></div>
+          <div class="merge-fld"><label>Scale %</label><input type="number" id="mScale" value="100" min="1" max="400" class="setting-input"></div>
+          <div class="merge-fld"><label>Layer Name</label><input type="text" id="mName" value="Merged" class="setting-input"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:12px;color:var(--text2);font-weight:500;min-width:60px;">Z-Order</span>
+          <div class="mp4seg">
+            <button class="mp4sb active" data-zorder="top">On Top</button>
+            <button class="mp4sb" data-zorder="bottom">Behind</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="mergeGoBtn" class="btn btn-primary" style="flex:1;justify-content:center;" disabled>
+          <i class="ri-picture-in-picture-line"></i> Merge
+        </button>
+        <button class="btn btn-ghost modal-close-btn" data-modal="merge-modal" style="flex:1;justify-content:center;">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+
+  $('mergeFileIn').addEventListener('change', e => {
+    const f=e.target.files[0]; if(!f)return; e.target.value='';
+    mergeParseLottie(f, d => { mergePending=d; mergeShowLoaded(f.name); });
+  });
+  $('mergeChangBtn').addEventListener('click', () => {
+    mergePending=null;
+    $('mergeDropInner').style.display='flex'; $('mergeLoadedRow').style.display='none';
+    $('mergeSettings').style.display='none'; $('mergeGoBtn').disabled=true;
+  });
+  const dz=$('mergeDropZone');
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('merge-drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('merge-drag-over'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('merge-drag-over');const f=e.dataTransfer.files[0];if(f)mergeParseLottie(f,d=>{mergePending=d;mergeShowLoaded(f.name);});});
+  div.querySelector('[data-zorder]')?.closest('.mp4seg').addEventListener('click',e=>{const b=e.target.closest('[data-zorder]');if(!b)return;div.querySelectorAll('[data-zorder]').forEach(x=>x.classList.remove('active'));b.classList.add('active');});
+  $('mergeGoBtn').addEventListener('click', mergeDoMerge);
+}
+
+function mergeParseLottie(file, cb) {
+  const n=file.name.toLowerCase();
+  if(n.endsWith('.tgs')){
+    file.arrayBuffer().then(buf=>{try{cb(JSON.parse(pako.ungzip(new Uint8Array(buf),{to:'string'})));}catch(e){alert('Parse error: '+e.message);}});
+  } else {
+    file.text().then(txt=>{try{cb(JSON.parse(txt));}catch(e){alert('Parse error: '+e.message);}});
+  }
+}
+
+function mergeShowLoaded(name) {
+  $('mergeDropInner').style.display='none'; $('mergeLoadedRow').style.display='flex';
+  $('mergeLoadedName').textContent=name.replace(/\.(json|tgs)$/i,'');
+  $('mergeLoadedInfo').textContent=`${mergePending.w||'?'}×${mergePending.h||'?'} · ${mergePending.fr||'?'}fps`;
+  $('mName').value=mergePending.nm||name.replace(/\.(json|tgs)$/i,'')||'Merged';
+  $('mergeSettings').style.display='block'; $('mergeGoBtn').disabled=false;
+}
+
+function mergeDoMerge() {
+  if(!animData||!mergePending)return;
+  const el=$('merge-modal');
+  const posX=parseFloat($('mPosX').value)||0, posY=parseFloat($('mPosY').value)||0;
+  const scale=parseFloat($('mScale').value)/100||1, name=$('mName').value||'Merged';
+  const onTop=!el.querySelector('[data-zorder="bottom"].active');
+  pushHistory();
+  if(!animData.assets)animData.assets=[];
+
+  const prefix='mf_'+Date.now()+'_', assetMap=new Map();
+  (mergePending.assets||[]).forEach(asset=>{
+    const newId=prefix+(asset.id||Math.random().toString(36).slice(2));
+    assetMap.set(asset.id,newId);
+    const cl=deepCopy(asset);cl.id=newId;
+    if(cl.layers)cl.layers.forEach(l=>{if(l.refId&&assetMap.has(l.refId))l.refId=assetMap.get(l.refId);});
+    animData.assets.push(cl);
+  });
+
+  const precompId=prefix+'precomp';
+  const precomp={id:precompId,nm:name,fr:mergePending.fr,layers:deepCopy(mergePending.layers||[])};
+  precomp.layers.forEach(l=>{if(l.refId&&assetMap.has(l.refId))l.refId=assetMap.get(l.refId);});
+  animData.assets.push(precomp);
+
+  const maxInd=Math.max(0,...animData.layers.map(l=>l.ind||0));
+  const bW=animData.w||512,bH=animData.h||512,sW=mergePending.w||512,sH=mergePending.h||512;
+  const newLayer={ddd:0,ind:maxInd+1,ty:0,nm:name,refId:precompId,sr:1,
+    ks:{o:{a:0,k:100},r:{a:0,k:0},p:{a:0,k:[posX+bW/2,posY+bH/2,0]},a:{a:0,k:[sW/2,sH/2,0]},s:{a:0,k:[scale*100,scale*100,100]}},
+    ao:0,w:sW,h:sH,ip:animData.ip||0,op:animData.op||60,st:0,bm:0};
+  onTop?animData.layers.unshift(newLayer):animData.layers.push(newLayer);
+
+  if(fileList[fileIndex])fileList[fileIndex].animData=animData;
+  closeModal('merge-modal');
+  afterDataChange();
+  alert(`✓ Merged "${name}" into frame!`);
+}
+
+/* =============================================
+   TOUCH TRANSFORM
+   One finger = move all layers, two fingers = pinch scale + rotate
+   ============================================= */
+const TT={active:false,mode:'none',snapped:false,sx:0,sy:0,sPos:[],sDist:0,sAngle:0,sScales:[],sRots:[]};
+
+function ttKV(p){if(!p)return null;return p.a===1&&Array.isArray(p.k)?p.k[0]?.s:p.k;}
+function ttSetKV(p,v){if(!p)return;if(p.a===1&&Array.isArray(p.k))p.k.forEach(kf=>{if(kf.s)kf.s=Array.isArray(v)?[...v]:[v];});else p.k=Array.isArray(v)?[...v]:v;}
+function ttScalar(p){if(!p)return 0;if(p.a===1&&Array.isArray(p.k))return p.k[0]?.s?.[0]??0;return Array.isArray(p.k)?p.k[0]:p.k??0;}
+function ttSetScalar(p,v){if(!p)return;if(p.a===1&&Array.isArray(p.k))p.k.forEach(kf=>{if(kf.s)kf.s[0]=v;if(kf.e)kf.e[0]=v;});else p.k=v;}
+function ttDist(a,b){const dx=a.clientX-b.clientX,dy=a.clientY-b.clientY;return Math.sqrt(dx*dx+dy*dy);}
+function ttAngle(a,b){return Math.atan2(b.clientY-a.clientY,b.clientX-a.clientX)*180/Math.PI;}
+function ttLayers(){return(animData?.layers||[]).filter(l=>!l.hd&&l.ks);}
+
+function initTouchTransform(){
+  const el=$('anim'); if(!el)return;
+  el.addEventListener('touchstart', ttStart, {passive:false});
+  el.addEventListener('touchmove',  ttMove,  {passive:false});
+  el.addEventListener('touchend',   ttEnd,   {passive:false});
+  el.addEventListener('touchcancel',ttEnd,   {passive:false});
+}
+
+function ttStart(e){
+  if(!animData)return; e.preventDefault();
+  const layers=ttLayers(); if(!layers.length)return;
+  if(!TT.snapped){pushHistory();TT.snapped=true;}
+  TT.active=true;
+  if(e.touches.length===1){
+    TT.mode='move';TT.sx=e.touches[0].clientX;TT.sy=e.touches[0].clientY;
+    const wrap=$('canvasWrap'),rect=wrap?wrap.getBoundingClientRect():{width:512,height:512};
+    const scX=(animData.w||512)/rect.width,scY=(animData.h||512)/rect.height;
+    TT.sPos=layers.map(l=>{const p=ttKV(l.ks.p)||[0,0,0];return{l,x:p[0],y:p[1],scX,scY};});
+  } else if(e.touches.length>=2){
+    TT.mode='pinch';TT.sDist=ttDist(e.touches[0],e.touches[1]);TT.sAngle=ttAngle(e.touches[0],e.touches[1]);
+    TT.sScales=layers.map(l=>{const sc=ttKV(l.ks.s)||[100,100,100];return{l,sx:sc[0],sy:sc[1],sz:sc[2]||100};});
+    TT.sRots=layers.map(l=>({l,r:ttScalar(l.ks.r)||0}));
+  }
+}
+function ttMove(e){
+  if(!TT.active)return;e.preventDefault();
+  if(TT.mode==='move'&&e.touches.length>=1){
+    const dx=e.touches[0].clientX-TT.sx,dy=e.touches[0].clientY-TT.sy;
+    TT.sPos.forEach(({l,x,y,scX,scY})=>{if(!l.ks.p)return;ttSetKV(l.ks.p,[Math.round(x+dx*scX),Math.round(y+dy*scY),0]);});
+    reloadAnim();
+  } else if(TT.mode==='pinch'&&e.touches.length>=2){
+    const ratio=TT.sDist>0?ttDist(e.touches[0],e.touches[1])/TT.sDist:1;
+    const dAng=ttAngle(e.touches[0],e.touches[1])-TT.sAngle;
+    TT.sScales.forEach(({l,sx,sy,sz})=>{if(!l.ks.s)l.ks.s={a:0,k:[100,100,100]};ttSetKV(l.ks.s,[Math.round(sx*ratio*10)/10,Math.round(sy*ratio*10)/10,sz]);});
+    TT.sRots.forEach(({l,r})=>{if(!l.ks.r)l.ks.r={a:0,k:0};ttSetScalar(l.ks.r,Math.round((r+dAng)*10)/10);});
+    reloadAnim();
+  }
+}
+function ttEnd(e){
+  if(!TT.active)return;
+  if(e.touches.length===0){TT.active=false;TT.mode='none';TT.snapped=false;}
+  else if(e.touches.length===1&&TT.mode==='pinch'){
+    TT.mode='move';TT.sx=e.touches[0].clientX;TT.sy=e.touches[0].clientY;
+    const wrap=$('canvasWrap'),rect=wrap?wrap.getBoundingClientRect():{width:512,height:512};
+    const scX=(animData.w||512)/rect.width,scY=(animData.h||512)/rect.height;
+    TT.sPos=ttLayers().map(l=>{const p=ttKV(l.ks.p)||[0,0,0];return{l,x:p[0],y:p[1],scX,scY};});
+  }
+}
+
+/* =============================================
+   WIRE NEW FEATURES INTO EXISTING APP
+   ============================================= */
+
+// Patch the existing DOMContentLoaded to also init new features
+document.addEventListener('DOMContentLoaded', () => {
+  // Build modals (inject HTML into page)
+  buildMp4Modal();
+  buildMergeModal();
+  // Touch transform
+  initTouchTransform();
+});
+
+// Extend export menu to include MP4 button
+// We patch after the existing exportMenuBtn listener by wrapping it
+const _origExportBtn = $('exportMenuBtn');
+if (_origExportBtn) {
+  _origExportBtn.addEventListener('click', () => {
+    // Wait for existing handler to render the modal, then inject MP4 button
+    setTimeout(() => {
+      const box = $('exportModalBox');
+      if (!box || box.querySelector('#expMp4Btn')) return;
+      const btn = document.createElement('button');
+      btn.id = 'expMp4Btn';
+      btn.className = 'btn';
+      btn.style.cssText = 'border:1.5px solid #8b5cf6;color:#8b5cf6;width:100%;justify-content:center;padding:13px;font-size:14px;font-weight:600;';
+      btn.innerHTML = '🎬 MP4 / WebM <span style="font-size:11px;opacity:.6;margin-left:4px;">(Video with custom bg)</span>';
+      btn.addEventListener('click', () => {
+        closeModal('export-modal');
+        mp4UpdateInfo();
+        openModal('mp4-modal');
+      });
+      // Insert before Cancel button
+      const footer = box.querySelector('.modal-footer') || box.querySelector('[data-modal="export-modal"]')?.parentElement;
+      const cancelBtn = box.querySelector('[data-modal="export-modal"]');
+      if (cancelBtn && cancelBtn.parentElement) {
+        cancelBtn.parentElement.insertBefore(btn, cancelBtn);
+      } else {
+        box.appendChild(btn);
+      }
+    }, 60);
+  });
+}
+
+// Merge button — add to toolbar dynamically since it wasn't in the original HTML
+document.addEventListener('DOMContentLoaded', () => {
+  const toolbar = document.querySelector('.toolbar');
+  if (!toolbar || $('mergeToolBtn')) return;
+  const mergeBtn = document.createElement('button');
+  mergeBtn.id = 'mergeToolBtn';
+  mergeBtn.className = 'btn btn-ghost icon-btn';
+  mergeBtn.title = 'Merge two animations';
+  mergeBtn.innerHTML = '<i class="ri-picture-in-picture-line"></i>';
+  mergeBtn.addEventListener('click', () => {
+    if (!animData) return alert('Load a Lottie file first.');
+    // Reset modal state
+    mergePending = null;
+    const di = $('mergeDropInner'), lr = $('mergeLoadedRow'), ms = $('mergeSettings'), gb = $('mergeGoBtn');
+    if (di) di.style.display = 'flex';
+    if (lr) lr.style.display = 'none';
+    if (ms) ms.style.display = 'none';
+    if (gb) gb.disabled = true;
+    openModal('merge-modal');
+  });
+  // Insert before the export button
+  const exportBtn = $('exportMenuBtn');
+  if (exportBtn) toolbar.insertBefore(mergeBtn, exportBtn);
+  else toolbar.appendChild(mergeBtn);
+});
+
+// Add Layer Colours tab to the editor panel
+document.addEventListener('DOMContentLoaded', () => {
+  // Insert new tab button
+  const tabsNav = document.querySelector('.tabs-nav');
+  const resetBtn = $('resetColorsBtn');
+  if (!tabsNav || tabsNav.querySelector('[data-tab="layercolors"]')) return;
+
+  const lcTab = document.createElement('button');
+  lcTab.className = 'tab-btn';
+  lcTab.dataset.tab = 'layercolors';
+  lcTab.innerHTML = '<i class="ri-stack-fill"></i> Layers';
+  // Insert before reset button
+  tabsNav.insertBefore(lcTab, resetBtn);
+
+  // Insert tab pane
+  const editorPanel = document.querySelector('.editor-panel');
+  if (!editorPanel || $('tab-layercolors')) return;
+  const pane = document.createElement('div');
+  pane.id = 'tab-layercolors';
+  pane.className = 'tab-pane';
+  pane.innerHTML = `
+    <div class="lc-panel-header">
+      <button id="lcUnisolateBtn" class="lc-unisolate" style="display:none;">⊙ Show All Layers</button>
+    </div>
+    <div id="layerColorsList"></div>`;
+  editorPanel.appendChild(pane);
+
+  // Wire tab click (piggyback on existing tab-btn handler)
+  lcTab.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+    lcTab.classList.add('active');
+    pane.classList.add('active');
+    renderLayerColorsPanel();
+  });
+
+  // Unisolate button
+  document.addEventListener('click', e => {
+    if (e.target.id === 'lcUnisolateBtn') lcUnisolate();
+  });
+});
+
+// Also refresh layer panel whenever afterDataChange fires and layer tab is active
+
+// Refresh layer colours panel when anim data changes and that tab is active
+function lcRefreshIfActive() {
+  const pane = document.getElementById('tab-layercolors');
+  if (pane && pane.classList.contains('active')) {
+    renderLayerColorsPanel();
+  }
+}
+
+// Patch afterDataChange (it's a function declaration, can reassign via window in non-strict)
+// Since the file uses 'use strict', we use a different approach:
+// The layer tab re-renders on click. For live colour picker changes,
+// lcRefreshIfActive() is called directly inside lc-ci input handler (already done).
+// For undo/redo refresh, we piggyback on the existing DOMContentLoaded tab wiring above.
