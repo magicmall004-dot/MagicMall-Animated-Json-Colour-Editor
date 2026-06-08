@@ -956,3 +956,180 @@ footer a:hover { text-decoration: underline; }
 /* ---- Hidden utility ---- */
 .hidden { display: none !important; }
 
+
+/* =============================================
+   NEW FEATURE STYLES — append to styles.css
+   ============================================= */
+
+/* ── Layer Colours Panel ── */
+#layerColorsPanel { padding: 0; }
+
+.lcp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  position: sticky; top: 0; z-index: 5;
+}
+.lcp-title {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text2);
+}
+.lcp-unisolate-btn {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; color: var(--blue);
+  background: rgba(11,132,255,.1);
+  border: 1px solid rgba(11,132,255,.25);
+  border-radius: 6px; padding: 4px 9px;
+  cursor: pointer; transition: background .15s;
+}
+.lcp-unisolate-btn:hover { background: rgba(11,132,255,.2); }
+
+.lcp-block { border-bottom: 1px solid var(--border); transition: background .2s; }
+.lcp-block.lcp-isolated { background: rgba(11,132,255,.05); }
+
+.lcp-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; cursor: pointer;
+  transition: background .15s;
+}
+.lcp-head:hover { background: rgba(11,132,255,.04); }
+
+.lcp-thumb {
+  width: 36px; height: 36px; border-radius: 7px;
+  border: 1px solid var(--border2); flex-shrink: 0; display: block;
+}
+.lcp-icon { font-size: 13px; flex-shrink: 0; }
+.lcp-name {
+  flex: 1; font-size: 12px; font-weight: 500; color: var(--text);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.lcp-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+.lcp-iso-btn, .lcp-vis-btn {
+  width: 28px; height: 28px; border-radius: 6px;
+  border: 1px solid var(--border2); background: transparent;
+  cursor: pointer; font-size: 13px; display: flex;
+  align-items: center; justify-content: center;
+  color: var(--text2); transition: all .15s;
+}
+.lcp-iso-btn:hover, .lcp-vis-btn:hover {
+  background: rgba(11,132,255,.1); border-color: rgba(11,132,255,.3);
+}
+.lcp-iso-on {
+  background: var(--blue) !important;
+  color: white !important;
+  border-color: transparent !important;
+}
+
+.lcp-colors { padding: 4px 12px 10px 56px; display: flex; flex-direction: column; gap: 5px; }
+.lcp-none { padding: 4px 12px 8px 56px; font-size: 11px; color: var(--text3); }
+
+.lcp-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  transition: border-color .15s;
+}
+.lcp-row:hover { border-color: var(--blue); }
+
+.lcp-sw-wrap { position: relative; width: 28px; height: 28px; flex-shrink: 0; }
+.lcp-sw { width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(0,0,0,.1); }
+.lcp-ci {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; border: none; padding: 0;
+}
+.lcp-lbl {
+  flex: 1; font-size: 11px; color: var(--text2);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.lcp-hex { font-family: var(--font-mono); font-size: 10px; color: var(--text3); flex-shrink: 0; }
+
+/* ── MP4 Export Modal ── */
+.mp4-settings { display: flex; flex-direction: column; gap: 13px; margin: 4px 0; }
+.mp4-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.mp4-row label { font-size: 13px; color: var(--text2); font-weight: 500; min-width: 70px; flex-shrink: 0; }
+
+.mp4-bg-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mp4-transp-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); cursor: pointer; }
+.mp4-bg-swatch {
+  width: 26px; height: 26px; border-radius: 6px;
+  border: 1px solid var(--border2); flex-shrink: 0;
+  background: #000;
+}
+.mp4-hex-input {
+  width: 72px; font-family: var(--font-mono); font-size: 11px;
+  padding: 4px 6px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+}
+.mp4-hex-input:focus { outline: none; border-color: var(--blue); }
+
+.mp4-seg {
+  display: flex; gap: 3px;
+  background: var(--surface2); padding: 3px; border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.mp4-sb {
+  padding: 5px 11px; border-radius: 5px; border: none;
+  background: transparent; color: var(--text2);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .15s;
+}
+.mp4-sb:hover { color: var(--text); }
+.mp4-sb.active { background: var(--blue); color: white; box-shadow: 0 2px 8px var(--blue-glow); }
+
+.mp4-info-bar {
+  font-family: var(--font-mono); font-size: 11px; color: var(--text3);
+  text-align: center; padding: 8px 12px;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+}
+
+.mp4-prog-row { margin: 4px 0; }
+.mp4-prog-track {
+  height: 6px; border-radius: 3px;
+  background: var(--surface2); border: 1px solid var(--border);
+  overflow: hidden; margin-bottom: 6px;
+}
+.mp4-prog-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--blue), #00c6ff);
+  border-radius: 3px; transition: width .2s;
+}
+.mp4-prog-text { font-size: 12px; color: var(--text2); text-align: center; display: block; }
+
+/* export choice for MP4 in export modal */
+.export-choice-mp4 .export-choice-icon { background: rgba(16,185,129,.15); color: #10b981; }
+
+/* ── Merge Frame Modal ── */
+.merge-drop-zone {
+  border: 2px dashed var(--border); border-radius: 12px;
+  padding: 24px 16px; min-height: 110px;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .2s, background .2s;
+}
+#mergeDropInner { display: flex; flex-direction: column; align-items: center; }
+.merge-drop-zone.merge-drag-over {
+  border-color: var(--blue); background: rgba(11,132,255,.05);
+}
+.merge-loaded-badge {
+  background: #10b981; color: white;
+  font-size: 10px; font-weight: 700;
+  padding: 2px 7px; border-radius: 5px;
+}
+.merge-field { display: flex; flex-direction: column; gap: 5px; }
+.merge-field label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text2);
+}
+
+/* ── Touch targets (mobile) ── */
+@media (hover: none) and (pointer: coarse) {
+  .lcp-iso-btn, .lcp-vis-btn { width: 36px; height: 36px; }
+  .lcp-head { min-height: 48px; }
+  .lcp-row  { padding: 9px 10px; }
+  .mp4-sb   { padding: 8px 14px; }
+  .tab-btn  { padding: 14px 10px; }
+}
