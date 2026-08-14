@@ -270,7 +270,8 @@ function reloadAnim(){
     animInstance.addEventListener('data_ready',onLoad);
     setTimeout(onLoad,1500);
     animInstance.addEventListener('enterFrame',()=>{
-      if(!frameSlider.matches(':active')){const f=Math.round(animInstance.currentFrame);frameSlider.value=f;frameLabel.textContent=f;}
+      // FIX: use an explicit drag flag — :active is unreliable for range inputs on touch devices
+      if(!sliderDragging){const f=Math.round(animInstance.currentFrame);frameSlider.value=f;frameLabel.textContent=f;}
     });
   },30);
 }
@@ -286,13 +287,19 @@ $('playPauseBtn').addEventListener('click',()=>{
   if(baActive){playerPaused?[baBeforeAnim,baAfterAnim].forEach(a=>a&&a.pause()):[baBeforeAnim,baAfterAnim].forEach(a=>a&&a.play());}
 });
 
+let sliderDragging=false;
+frameSlider.addEventListener('pointerdown',()=>{sliderDragging=true;});
+frameSlider.addEventListener('pointerup',()=>{sliderDragging=false;});
+frameSlider.addEventListener('pointercancel',()=>{sliderDragging=false;});
 frameSlider.addEventListener('input',()=>{
   if(!animInstance)return;
+  sliderDragging=true;
   const f=parseFloat(frameSlider.value);
   if(!playerPaused){animInstance.pause();playerPaused=true;updatePlayBtn();}
   animInstance.goToAndStop(f,true);frameLabel.textContent=Math.round(f);
   if(baActive){baBeforeAnim&&baBeforeAnim.goToAndStop(f,true);baAfterAnim&&baAfterAnim.goToAndStop(f,true);}
 });
+frameSlider.addEventListener('change',()=>{sliderDragging=false;});
 
 /* =============================================
    BEFORE / AFTER
@@ -376,8 +383,8 @@ function renderColors(){
   colorStatEl.textContent=items.length;colorsEl.innerHTML='';
   if(!items.length){colorsEl.innerHTML='<div class="no-colors"><i class="ri-palette-line"></i><br>No colours found</div>';return;}
 
-  items.forEach(item=>{
-    const card=document.createElement('div');card.className='color-card';
+  items.forEach((item,idx)=>{
+    const card=document.createElement('div');card.className='color-card';card.style.setProperty('--i',Math.min(idx,24));
     const isGrad=item.isGrad&&useAdv;
     if(item.count>1||isGrad){
       const badge=document.createElement('div');badge.className='color-badge';
@@ -680,7 +687,10 @@ let _drag=null;
 function startDragPin(e,idx){
   e.preventDefault();_drag=idx;
   const bar=$('gradientBar'),rect=bar.getBoundingClientRect();
-  const onMove=ev=>{const cx=ev.clientX||(ev.touches&&ev.touches[0].clientX);if(cx==null)return;const pos=Math.max(0,Math.min(1,(cx-rect.left)/rect.width));gradEdit.stops[_drag].pos=pos;gradEdit.stops.sort((a,b)=>a.pos-b.pos);const gc=gradEdit.stops.map(s=>`${s.hex} ${(s.pos*100).toFixed(1)}%`).join(',');bar.style.background=`linear-gradient(90deg,${gc})`;bar.querySelectorAll('.gradient-stop-pin').forEach((p,i)=>{p.style.left=(gradEdit.stops[i].pos*100)+'%';});};
+  const onMove=ev=>{
+    // FIX: prevent the page/modal from scrolling under the finger while dragging a stop on touch
+    if(ev.touches)ev.preventDefault();
+    const cx=ev.clientX||(ev.touches&&ev.touches[0].clientX);if(cx==null)return;const pos=Math.max(0,Math.min(1,(cx-rect.left)/rect.width));gradEdit.stops[_drag].pos=pos;gradEdit.stops.sort((a,b)=>a.pos-b.pos);const gc=gradEdit.stops.map(s=>`${s.hex} ${(s.pos*100).toFixed(1)}%`).join(',');bar.style.background=`linear-gradient(90deg,${gc})`;bar.querySelectorAll('.gradient-stop-pin').forEach((p,i)=>{p.style.left=(gradEdit.stops[i].pos*100)+'%';});};
   const onUp=()=>{window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp);window.removeEventListener('touchmove',onMove);window.removeEventListener('touchend',onUp);_drag=null;renderGradientEditor();};
   window.addEventListener('mousemove',onMove);window.addEventListener('mouseup',onUp);
   window.addEventListener('touchmove',onMove,{passive:false});window.addEventListener('touchend',onUp);
@@ -1327,7 +1337,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   const toolbar=document.querySelector('.toolbar');
   if(toolbar&&!$('mergeToolBtn')){
     const btn=document.createElement('button');
-    btn.id='mergeToolBtn';btn.className='btn btn-ghost icon-btn';btn.title='Merge two animations';
+    btn.id='mergeToolBtn';btn.className='btn btn-ghost icon-btn';btn.title='Merge two animations';btn.setAttribute('aria-label','Merge two animations');
     btn.innerHTML='<i class="ri-picture-in-picture-line"></i>';
     btn.addEventListener('click',()=>{
       if(!animData)return alert('Load a Lottie file first.');
@@ -1346,7 +1356,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(tabsNav&&resetBtn&&!tabsNav.querySelector('[data-tab="layercolors"]')){
     const lcTab=document.createElement('button');
     lcTab.className='tab-btn';lcTab.dataset.tab='layercolors';
-    lcTab.innerHTML='<i class="ri-stack-fill"></i> Layers';
+    lcTab.innerHTML='<i class="ri-stack-fill"></i> Layer Colors';
     tabsNav.insertBefore(lcTab,resetBtn);
     const editorPanel=document.querySelector('.editor-panel');
     if(editorPanel&&!$('tab-layercolors')){
