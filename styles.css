@@ -620,3 +620,244 @@ header, .file-bar { animation: fadeInUp .35s ease both; }
   .canvas-wrap { max-height: none; }
   .editor-panel { min-height: 0; }
 }
+
+/* =============================================
+   PHONE UI FIXES — patch block
+   ============================================= */
+
+/* ── 1. Color cards: list layout on phone, bigger tap targets ── */
+@media (max-width: 640px) {
+  #colors {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .color-card {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px;
+    border-radius: var(--r);
+    cursor: default;
+  }
+  .color-card .color-swatch,
+  .color-card .gradient-swatch {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 10px;
+  }
+  .color-card .color-badge {
+    top: 6px;
+    right: 6px;
+  }
+  /* card body takes remaining width */
+  .color-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
+/* ── 2. Hex text input replacing contenteditable ── */
+.color-hex-input {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  padding: 4px 6px;
+  width: 100%;
+  text-align: center;
+  transition: border-color .15s;
+  -webkit-appearance: none;
+  cursor: text;
+}
+.color-hex-input:focus {
+  outline: none;
+  border-color: var(--blue);
+  color: var(--text);
+}
+/* on desktop, preserve the existing card look */
+@media (min-width: 641px) {
+  .color-hex-input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+/* ── 3. RGB slider expand toggle ── */
+.color-expand-btn {
+  display: none; /* shown only on mobile */
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  width: 100%;
+  justify-content: center;
+}
+.color-expand-btn:hover { background: var(--surface2); color: var(--blue); }
+.color-expand-btn i { transition: transform .2s; }
+.color-card.rgb-open .color-expand-btn i { transform: rotate(180deg); }
+@media (max-width: 640px) {
+  .color-expand-btn { display: flex; }
+}
+
+/* ── 4. RGB slider panel (inside card, mobile-first) ── */
+.rgb-slider-panel {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  margin-top: 2px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.color-card.rgb-open .rgb-slider-panel { display: flex; }
+
+/* on desktop, always show a compact picker row (no sliders) */
+@media (min-width: 641px) {
+  .rgb-slider-panel { display: none !important; }
+}
+
+.rgb-ch-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rgb-ch-hdr {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+}
+.rgb-ch-name { letter-spacing: .04em; }
+.rgb-ch-name.r { color: #ef4444; }
+.rgb-ch-name.g { color: #10b981; }
+.rgb-ch-name.b { color: #3b82f6; }
+.rgb-ch-val { font-family: var(--font-mono); color: var(--text2); }
+
+.rgb-range {
+  width: 100%;
+  height: 8px;
+  border-radius: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  cursor: pointer;
+}
+.rgb-range.r { background: linear-gradient(to right, #1a0000, #ff4444); }
+.rgb-range.g { background: linear-gradient(to right, #001a00, #10b981); }
+.rgb-range.b { background: linear-gradient(to right, #00001a, #3b82f6); }
+.rgb-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0,0,0,.35), 0 0 0 2px rgba(255,255,255,.3);
+  cursor: pointer;
+  transition: transform .12s;
+}
+.rgb-range::-webkit-slider-thumb:hover { transform: scale(1.12); }
+.rgb-range::-webkit-slider-thumb:active { transform: scale(1.22); }
+.rgb-range::-moz-range-thumb {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 6px rgba(0,0,0,.35);
+}
+
+/* preview bar */
+.rgb-preview-bar {
+  height: 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(0,0,0,.08);
+  transition: background .08s;
+}
+
+/* Hex row inside slider panel */
+.rgb-hex-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rgb-hex-hash {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--blue);
+  flex-shrink: 0;
+}
+.rgb-hex-text {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid var(--border);
+  color: var(--text);
+  outline: none;
+  padding: 4px 2px;
+  transition: border-color .15s;
+  -webkit-appearance: none;
+}
+.rgb-hex-text:focus { border-color: var(--blue); }
+.rgb-apply-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1.5px solid var(--blue);
+  background: transparent;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.rgb-apply-btn:hover { background: rgba(11,132,255,.1); }
+.rgb-apply-btn:active { transform: scale(.95); }
+
+/* ── 5. Fix toolbar mask clipping Export button on very narrow screens ── */
+@media (max-width: 480px) {
+  .toolbar {
+    mask-image: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 2px), transparent 100%);
+  }
+}
+@media (max-width: 380px) {
+  .toolbar { mask-image: none; }
+}
+
+/* ── 6. Before/After min-height fix for phone portrait ── */
+@media (max-width: 640px) {
+  .ba-side { min-height: 120px; }
+}
+
+/* ── 7. filter-opts: move to a dedicated row on very small screens ── */
+@media (max-width: 400px) {
+  .filter-bar { flex-direction: column; align-items: stretch; gap: 6px; }
+  .filter-opts { display: flex; justify-content: flex-end; }
+  .filter-pills { flex: none; }
+}
+
+/* ── 8. Color card on desktop: hex input keeps existing layout ── */
+@media (min-width: 641px) {
+  .color-card-body { display: contents; }
+}
