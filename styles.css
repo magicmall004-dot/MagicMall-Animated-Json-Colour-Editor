@@ -901,3 +901,31 @@ header, .file-bar { animation: fadeInUp .35s ease both; }
     gap: 6px;
   }
 }
+
+/* ── Layer hover highlight ── */
+
+/* glow applied to the SVG <g> element of the hovered layer */
+#anim svg .lc-layer-hl {
+  filter: drop-shadow(0 0 5px rgba(56,189,248,0.95))
+          drop-shadow(0 0 12px rgba(56,189,248,0.55)) !important;
+  transition: filter .15s;
+}
+
+/* hint icon in the layer header */
+.layer-hl-hint {
+  margin-left: auto;
+  opacity: 0;
+  color: var(--blue);
+  font-size: 13px;
+  transition: opacity .15s;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.layer-color-header:hover .layer-hl-hint { opacity: 1; }
+.layer-color-header {
+  cursor: default;
+}
+.layer-color-header:hover {
+  background: color-mix(in srgb, var(--blue) 8%, transparent);
+  border-radius: 6px 6px 0 0;
+}
