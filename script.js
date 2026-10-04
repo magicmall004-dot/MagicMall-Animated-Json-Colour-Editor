@@ -329,24 +329,24 @@ function destroyBA(){
    ============================================= */
 function extractColors(data){
   const results=[];groupedColors={};
-  function add(ref,type,shapeType,hex,gradIndex){
-    const e={ref,type,shapeType,hex,gradIndex};results.push(e);
+  function add(ref,type,shapeType,hex,gradIndex,layerName){
+    const e={ref,type,shapeType,hex,gradIndex,layerName:layerName||'Root'};results.push(e);
     if(!groupedColors[hex])groupedColors[hex]={hex,instances:[]};
     groupedColors[hex].instances.push(e);
   }
-  function walk(obj){
+  function walk(obj,layerName){
     if(!obj||typeof obj!=='object')return;
     if(obj.ty==='fl'||obj.ty==='st'){
       const sType=obj.ty==='fl'?'Fill':'Stroke',c=obj.c;
       if(c){
-        if(c.a===1&&Array.isArray(c.k))c.k.forEach(kf=>{if(kf.s&&Array.isArray(kf.s))add(kf,'solid',sType,rgbaArrToHex(kf.s));});
-        else if(Array.isArray(c.k))add(c,'solid',sType,rgbaArrToHex(c.k));
-        else if(c.k&&Array.isArray(c.k.k))add(c.k,'solid',sType,rgbaArrToHex(c.k.k));
+        if(c.a===1&&Array.isArray(c.k))c.k.forEach(kf=>{if(kf.s&&Array.isArray(kf.s))add(kf,'solid',sType,rgbaArrToHex(kf.s),undefined,layerName);});
+        else if(Array.isArray(c.k))add(c,'solid',sType,rgbaArrToHex(c.k),undefined,layerName);
+        else if(c.k&&Array.isArray(c.k.k))add(c.k,'solid',sType,rgbaArrToHex(c.k.k),undefined,layerName);
       }
     }
     if((obj.ty==='gf'||obj.ty==='gs')&&obj.g){
       const sType=obj.ty==='gf'?'Gradient Fill':'Gradient Stroke',g=obj.g,numStops=g.p||0;
-      const proc=(arr,ref)=>{const cnt=numStops>0?numStops:Math.floor(arr.length/4);for(let i=0;i<cnt*4;i+=4){if(i+3>=arr.length)break;add(ref,'gradient',sType,rgbToHex(Math.round(arr[i+1]*255),Math.round(arr[i+2]*255),Math.round(arr[i+3]*255)),i);}};
+      const proc=(arr,ref)=>{const cnt=numStops>0?numStops:Math.floor(arr.length/4);for(let i=0;i<cnt*4;i+=4){if(i+3>=arr.length)break;add(ref,'gradient',sType,rgbToHex(Math.round(arr[i+1]*255),Math.round(arr[i+2]*255),Math.round(arr[i+3]*255)),i,layerName);}};
       if(g.k){
         if(g.k.a===1&&Array.isArray(g.k.k))g.k.k.forEach(kf=>{if(kf.s&&Array.isArray(kf.s))proc(kf.s,kf);});
         else if(Array.isArray(g.k.k))proc(g.k.k,g.k);
@@ -355,10 +355,30 @@ function extractColors(data){
     }
     for(const k in obj){
       if(!Object.prototype.hasOwnProperty.call(obj,k)||k==='c'||k==='sc')continue;
-      if(obj[k]&&typeof obj[k]==='object')walk(obj[k]);
+      if(obj[k]&&typeof obj[k]==='object')walk(obj[k],layerName);
     }
   }
-  walk(data);return results;
+  // Walk each top-level layer separately so we know which layer colors belong to
+  if(Array.isArray(data.layers)){
+    data.layers.forEach(layer=>{
+      const lName=layer.nm||`Layer ${layer.ind||'?'}`;
+      walk(layer,lName);
+    });
+  } else {
+    walk(data,'Root');
+  }
+  // Also walk assets (precomps)
+  if(Array.isArray(data.assets)){
+    data.assets.forEach(asset=>{
+      if(Array.isArray(asset.layers)){
+        asset.layers.forEach(layer=>{
+          const lName=(asset.nm||asset.id||'Asset')+' / '+(layer.nm||`Layer ${layer.ind||'?'}`);
+          walk(layer,lName);
+        });
+      }
+    });
+  }
+  return results;
 }
 
 /* =============================================
@@ -368,6 +388,7 @@ function extractAndRender(){if(!animData)return;allColors=extractColors(animData
 
 function renderColors(){
   const isGrouped=groupCheckbox.checked,useAdv=gradientToggle.checked;
+  const byLayer=$('layerGroupToggle')&&$('layerGroupToggle').checked;
   let items=[];
   if(isGrouped){
     Object.values(groupedColors).forEach(group=>{
@@ -381,6 +402,46 @@ function renderColors(){
     });
   }
   colorStatEl.textContent=items.length;colorsEl.innerHTML='';
+
+  // ── BY LAYER mode: group items under layer headers ──
+  if(byLayer&&items.length){
+    // build a map: layerName → items[]
+    const layerMap=new Map();
+    items.forEach(item=>{
+      // get layer name from first instance or entry
+      const lName=item.group
+        ? (item.group.instances[0]?.layerName||'Unknown')
+        : (item.entry?.layerName||'Unknown');
+      if(!layerMap.has(lName))layerMap.set(lName,[]);
+      layerMap.get(lName).push(item);
+    });
+
+    layerMap.forEach((layerItems,layerName)=>{
+      // layer header
+      const hdr=document.createElement('div');
+      hdr.className='layer-color-header';
+      hdr.innerHTML=`<i class="ri-stack-line"></i><span>${layerName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span><span class="layer-color-count">${layerItems.length}</span>`;
+      colorsEl.appendChild(hdr);
+
+      // cards grid inside this layer
+      const grid=document.createElement('div');
+      grid.className='layer-color-grid';
+      colorsEl.appendChild(grid);
+
+      layerItems.forEach((item,idx)=>{
+        const card=document.createElement('div');card.className='color-card';card.style.setProperty('--i',Math.min(idx,24));
+        const isGrad=item.isGrad&&useAdv;
+        if(item.count>1||isGrad){
+          const badge=document.createElement('div');badge.className='color-badge';
+          badge.innerHTML=isGrad?'<i class="ri-gradienter-line"></i>':`<i class="ri-stack-fill"></i> ${item.count}`;
+          card.appendChild(badge);
+        }
+        _buildColorCardContent(card,item,isGrad);
+        grid.appendChild(card);
+      });
+    });
+    return; // skip the normal render below
+  }
   if(!items.length){colorsEl.innerHTML='<div class="no-colors"><i class="ri-palette-line"></i><br>No colours found</div>';return;}
 
   items.forEach((item,idx)=>{
@@ -391,152 +452,30 @@ function renderColors(){
       badge.innerHTML=isGrad?'<i class="ri-gradienter-line"></i>':`<i class="ri-stack-fill"></i> ${item.count}`;
       card.appendChild(badge);
     }
-    if(isGrad){
-      const gradCss=buildGradPreview(item);
-      const sw=document.createElement('div');sw.className='gradient-swatch';sw.style.background=gradCss;card.appendChild(sw);
-      const hx=document.createElement('div');hx.className='color-hex gradient-label';hx.textContent='GRADIENT';card.appendChild(hx);
-      card.addEventListener('click',()=>openGradientEditor(item.group||buildSingleGroup(item.entry)));
-    } else {
-      /* ── swatch + native picker (desktop & fallback) ── */
-      const sw=document.createElement('div');sw.className='color-swatch';sw.style.background=item.hex;
-      const picker=document.createElement('input');picker.type='color';picker.value=item.hex;
-      sw.appendChild(picker);
-
-      /* card body wrapper (used for mobile list layout) */
-      const body=document.createElement('div');body.className='color-card-body';
-
-      /* hex text input (replaces contenteditable) */
-      const hexEl=document.createElement('input');
-      hexEl.type='text';
-      hexEl.className='color-hex color-hex-input';
-      hexEl.value=item.hex.toUpperCase();
-      hexEl.maxLength=7;
-      hexEl.spellcheck=false;
-      hexEl.autocomplete='off';
-      hexEl.inputMode='text'; /* avoids numeric keyboard */
-
-      /* expand button (mobile only — shown via CSS) */
-      const expandBtn=document.createElement('button');
-      expandBtn.className='color-expand-btn';
-      expandBtn.type='button';
-      expandBtn.innerHTML='<i class="ri-equalizer-2-line"></i> Adjust';
-
-      /* ── RGB slider panel ── */
-      function hexToRgb255Local(h){
-        const n=parseInt(h.replace('#',''),16);
-        return{r:(n>>16)&255,g:(n>>8)&255,b:n&255};
-      }
-      function rgbToHexLocal(r,g,b){
-        return '#'+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
-      }
-
-      const panel=document.createElement('div');panel.className='rgb-slider-panel';
-
-      let {r:cr,g:cg,b:cb}=hexToRgb255Local(item.hex);
-
-      function syncAll(r,g,b,source){
-        cr=r;cg=g;cb=b;
-        const nh=rgbToHexLocal(r,g,b);
-        sw.style.background=nh;
-        if(source!=='picker')picker.value=nh;
-        if(source!=='hex')hexEl.value=nh.toUpperCase();
-        if(source!=='hex2')hexText.value=nh.slice(1).toUpperCase();
-        if(source!=='r')rSlider.value=r;
-        if(source!=='g')gSlider.value=g;
-        if(source!=='b')bSlider.value=b;
-        rVal.textContent=r;gVal.textContent=g;bVal.textContent=b;
-        previewBar.style.background=nh;
-      }
-
-      /* R channel */
-      const rRow=document.createElement('div');rRow.className='rgb-ch-row';
-      const rHdr=document.createElement('div');rHdr.className='rgb-ch-hdr';
-      rHdr.innerHTML='<span class="rgb-ch-name r">R</span>';
-      const rVal=document.createElement('span');rVal.className='rgb-ch-val';rVal.textContent=cr;
-      rHdr.appendChild(rVal);rRow.appendChild(rHdr);
-      const rSlider=document.createElement('input');rSlider.type='range';rSlider.className='rgb-range r';
-      rSlider.min=0;rSlider.max=255;rSlider.value=cr;
-      rSlider.addEventListener('input',()=>{syncAll(+rSlider.value,cg,cb,'r');applyColorChange(item,rgbToHexLocal(+rSlider.value,cg,cb));debouncedReload();});
-      rRow.appendChild(rSlider);
-
-      /* G channel */
-      const gRow=document.createElement('div');gRow.className='rgb-ch-row';
-      const gHdr=document.createElement('div');gHdr.className='rgb-ch-hdr';
-      gHdr.innerHTML='<span class="rgb-ch-name g">G</span>';
-      const gVal=document.createElement('span');gVal.className='rgb-ch-val';gVal.textContent=cg;
-      gHdr.appendChild(gVal);gRow.appendChild(gHdr);
-      const gSlider=document.createElement('input');gSlider.type='range';gSlider.className='rgb-range g';
-      gSlider.min=0;gSlider.max=255;gSlider.value=cg;
-      gSlider.addEventListener('input',()=>{syncAll(cr,+gSlider.value,cb,'g');applyColorChange(item,rgbToHexLocal(cr,+gSlider.value,cb));debouncedReload();});
-      gRow.appendChild(gSlider);
-
-      /* B channel */
-      const bRow=document.createElement('div');bRow.className='rgb-ch-row';
-      const bHdr=document.createElement('div');bHdr.className='rgb-ch-hdr';
-      bHdr.innerHTML='<span class="rgb-ch-name b">B</span>';
-      const bVal=document.createElement('span');bVal.className='rgb-ch-val';bVal.textContent=cb;
-      bHdr.appendChild(bVal);bRow.appendChild(bHdr);
-      const bSlider=document.createElement('input');bSlider.type='range';bSlider.className='rgb-range b';
-      bSlider.min=0;bSlider.max=255;bSlider.value=cb;
-      bSlider.addEventListener('input',()=>{syncAll(cr,cg,+bSlider.value,'b');applyColorChange(item,rgbToHexLocal(cr,cg,+bSlider.value));debouncedReload();});
-      bRow.appendChild(bSlider);
-
-      /* Preview bar */
-      const previewBar=document.createElement('div');previewBar.className='rgb-preview-bar';previewBar.style.background=item.hex;
-
-      /* Hex text row inside panel */
-      const hexRow=document.createElement('div');hexRow.className='rgb-hex-row';
-      const hexHash=document.createElement('span');hexHash.className='rgb-hex-hash';hexHash.textContent='#';
-      const hexText=document.createElement('input');hexText.type='text';hexText.className='rgb-hex-text';
-      hexText.value=item.hex.slice(1).toUpperCase();hexText.maxLength=6;
-      hexText.spellcheck=false;hexText.autocomplete='off';hexText.inputMode='text';
-      const applyHexText=()=>{
-        let v=hexText.value.replace(/[^0-9a-fA-F]/g,'');
-        if(v.length!==6)return;
-        const nh='#'+v;const{r,g,b}=hexToRgb255Local(nh);
-        syncAll(r,g,b,'hex2');applyColorChange(item,nh);debouncedReload();
-      };
-      hexText.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();applyHexText();}});
-      const applyBtn2=document.createElement('button');applyBtn2.type='button';applyBtn2.className='rgb-apply-btn';applyBtn2.textContent='Apply';
-      applyBtn2.addEventListener('click',applyHexText);
-      hexRow.appendChild(hexHash);hexRow.appendChild(hexText);hexRow.appendChild(applyBtn2);
-
-      panel.appendChild(rRow);panel.appendChild(gRow);panel.appendChild(bRow);panel.appendChild(previewBar);panel.appendChild(hexRow);
-
-      /* Expand toggle */
-      expandBtn.addEventListener('click',e=>{e.stopPropagation();card.classList.toggle('rgb-open');});
-
-      /* Native picker sync */
-      picker.addEventListener('input',debounce(()=>{
-        const{r,g,b}=hexToRgb255Local(picker.value);
-        syncAll(r,g,b,'picker');applyColorChange(item,picker.value);debouncedReload();
-      },80));
-
-      /* Desktop hex input (top of card) */
-      const applyTopHex=()=>{
-        let v=hexEl.value.trim();
-        if(!v.startsWith('#'))v='#'+v;
-        if(!isValidHex(v))return;
-        const{r,g,b}=hexToRgb255Local(v);
-        syncAll(r,g,b,'hex');applyColorChange(item,v);debouncedReload();
-      };
-      hexEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();applyTopHex();hexEl.blur();}});
-      hexEl.addEventListener('blur',applyTopHex);
-
-      /* Card click: open native picker (desktop) or toggle expand (mobile handled by btn) */
-      card.addEventListener('click',e=>{
-        if(e.target===hexEl||e.target===picker||e.target===expandBtn||expandBtn.contains(e.target)||panel.contains(e.target))return;
-        if(window.innerWidth>=641)picker.click();
-      });
-
-      card.appendChild(sw);
-      body.appendChild(hexEl);
-      body.appendChild(expandBtn);
-      body.appendChild(panel);
-      card.appendChild(body);
-    }
+    _buildColorCardContent(card,item,isGrad);
     colorsEl.appendChild(card);
   });
+}
+
+/* Shared card content builder — used by normal render and by-layer render */
+function _buildColorCardContent(card,item,isGrad){
+  if(isGrad){
+    const gradCss=buildGradPreview(item);
+    const sw=document.createElement('div');sw.className='gradient-swatch';sw.style.background=gradCss;card.appendChild(sw);
+    const hx=document.createElement('div');hx.className='color-hex gradient-label';hx.textContent='GRADIENT';card.appendChild(hx);
+    card.addEventListener('click',()=>openGradientEditor(item.group||buildSingleGroup(item.entry)));
+  } else {
+    const sw=document.createElement('div');sw.className='color-swatch';sw.style.background=item.hex;
+    const picker=document.createElement('input');picker.type='color';picker.value=item.hex;
+    sw.appendChild(picker);card.appendChild(sw);
+    const hexEl=document.createElement('div');hexEl.className='color-hex';hexEl.contentEditable='true';hexEl.spellcheck=false;hexEl.textContent=item.hex.toUpperCase();
+    card.appendChild(hexEl);
+    picker.addEventListener('input',debounce(()=>{sw.style.background=picker.value;hexEl.textContent=picker.value.toUpperCase();applyColorChange(item,picker.value);debouncedReload();},80));
+    const applyHex=()=>{let v=hexEl.textContent.trim();if(!v.startsWith('#'))v='#'+v;if(!isValidHex(v))return;picker.value=v;sw.style.background=v;hexEl.textContent=v.toUpperCase();applyColorChange(item,v);debouncedReload();};
+    hexEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();applyHex();hexEl.blur();}});
+    hexEl.addEventListener('blur',applyHex);
+    card.addEventListener('click',e=>{if(e.target===hexEl||e.target===picker)return;picker.click();});
+  }
 }
 
 function buildGradPreview(item){
@@ -591,6 +530,8 @@ $$('.pill').forEach(btn=>{
 });
 groupCheckbox.addEventListener('change',renderColors);
 gradientToggle.addEventListener('change',renderColors);
+const layerGroupToggle=$('layerGroupToggle');
+if(layerGroupToggle)layerGroupToggle.addEventListener('change',renderColors);
 
 /* =============================================
    RESET
