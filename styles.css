@@ -861,11 +861,12 @@ header, .file-bar { animation: fadeInUp .35s ease both; }
 
 /* ── By Layer grouping ── */
 .layer-color-header {
+  grid-column: 1 / -1;   /* span full width of parent card grid */
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 4px 5px;
-  margin-top: 10px;
+  padding: 8px 6px 6px;
+  margin-top: 12px;
   font-size: 11px;
   font-weight: 700;
   color: var(--text2);
@@ -887,10 +888,11 @@ header, .file-bar { animation: fadeInUp .35s ease both; }
   font-family: var(--font-mono);
 }
 .layer-color-grid {
+  grid-column: 1 / -1;   /* span full width of parent card grid */
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
   gap: 8px;
-  padding: 8px 0;
+  padding: 6px 0 4px;
 }
 @media (max-width: 640px) {
   .layer-color-grid {
