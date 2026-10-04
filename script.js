@@ -420,7 +420,9 @@ function renderColors(){
       // layer header
       const hdr=document.createElement('div');
       hdr.className='layer-color-header';
-      hdr.innerHTML=`<i class="ri-stack-line"></i><span>${layerName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span><span class="layer-color-count">${layerItems.length}</span>`;
+      hdr.innerHTML=`<i class="ri-stack-line"></i><span>${layerName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span><span class="layer-color-count">${layerItems.length}</span><span class="layer-hl-hint" title="Hover to highlight in preview"><i class="ri-focus-3-line"></i></span>`;
+      hdr.addEventListener('mouseenter',()=>highlightLayer(layerName));
+      hdr.addEventListener('mouseleave',()=>clearLayerHighlight());
       colorsEl.appendChild(hdr);
 
       // cards grid inside this layer
@@ -490,6 +492,23 @@ function buildSingleGroup(entry){return{hex:entry.hex,instances:[entry]};}
 /* =============================================
    APPLYING COLOUR CHANGES
    ============================================= */
+/* ── Layer hover highlight ── */
+function getLayerSvgEls(layerName){
+  if(!animInstance||!animInstance.renderer||!animInstance.renderer.elements)return[];
+  return animInstance.renderer.elements
+    .filter(el=>el&&el.data&&el.data.nm===layerName&&el.layerElement)
+    .map(el=>el.layerElement);
+}
+function highlightLayer(layerName){
+  clearLayerHighlight();
+  getLayerSvgEls(layerName).forEach(el=>el.classList.add('lc-layer-hl'));
+}
+function clearLayerHighlight(){
+  const svg=animEl&&animEl.querySelector('svg');
+  if(!svg)return;
+  svg.querySelectorAll('.lc-layer-hl').forEach(el=>el.classList.remove('lc-layer-hl'));
+}
+
 function applyColorChange(item,newHex){
   if(!animData)return;
   const{r,g,b}=hexToNorm(newHex);
