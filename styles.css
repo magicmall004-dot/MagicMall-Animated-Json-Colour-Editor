@@ -858,3 +858,44 @@ header, .file-bar { animation: fadeInUp .35s ease both; }
 @media (min-width: 641px) {
   .color-card-body { display: contents; }
 }
+
+/* ── By Layer grouping ── */
+.layer-color-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 4px 5px;
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2);
+  letter-spacing: .04em;
+  border-bottom: 1px solid var(--border);
+}
+.layer-color-header:first-child { margin-top: 2px; }
+.layer-color-header i { font-size: 13px; color: var(--blue); flex-shrink: 0; }
+.layer-color-header span:first-of-type { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layer-color-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--blue);
+  font-family: var(--font-mono);
+}
+.layer-color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+  padding: 8px 0;
+}
+@media (max-width: 640px) {
+  .layer-color-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+}
