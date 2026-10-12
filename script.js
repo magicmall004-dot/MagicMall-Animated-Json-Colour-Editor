@@ -916,9 +916,18 @@ $('applySettings').addEventListener('click',()=>{
    TGS SCAN
    ============================================= */
 $('tgsScanBtn').addEventListener('click',()=>{if(!animData)return alert('Load a file first.');runTgsScan();});
+function baseName(){ const f=(typeof fileList!=='undefined'&&fileList[fileIndex])||null; return ((f&&f.name)||'animation').replace(/\.(json|tgs)$/i,''); }
+function buildTgsBytes(){ const out=deepCopy(animData); out.tgs=1; const compact=JSON.stringify(out,(k,v)=>typeof v==='number'?Math.round(v*1e4)/1e4:v); return pako.gzip(compact,{level:9}); }
 function runTgsScan(){
   const{w,h,fr,op,ip=0}=animData,dur=(op-ip)/fr;
-  const checks=[{label:'Size (512x512)',pass:w===512&&h===512,current:`${w}x${h}`,req:'512x512'},{label:'Frame Rate (60 fps)',pass:fr===60,current:`${fr} fps`,req:'60 fps'},{label:'Duration (max 3s)',pass:dur<=3,current:`${dur.toFixed(2)}s`,req:'3.0s'}];
+  let bytes=null; try{ bytes=buildTgsBytes(); }catch(_){}
+  const kb=bytes?bytes.length/1024:null;
+  const checks=[
+    {label:'Size (512x512)',pass:w===512&&h===512,current:`${w}x${h}`,req:'512x512'},
+    {label:'Frame Rate (60 fps)',pass:fr===60,current:`${fr} fps`,req:'60 fps'},
+    {label:'Duration (max 3s)',pass:dur<=3,current:`${dur.toFixed(2)}s`,req:'3.0s'},
+    {label:'File size (max 64 KB)',pass:kb!==null&&bytes.length<=64*1024,current:kb===null?'unknown':`${kb.toFixed(1)} KB`,req:'64 KB'}
+  ];
   const allPass=checks.every(c=>c.pass);
   $('tgs-results').innerHTML=`<div class="scan-summary ${allPass?'scan-pass':'scan-fail'}"><i class="ri-${allPass?'checkbox-circle':'error-warning'}-line"></i>${allPass?'Passed! Ready for Telegram.':'Issues found.'}</div>`
     +checks.map(c=>`<div class="check-row ${c.pass?'check-pass':'check-fail'}"><div><div class="check-label">${c.label}</div><div class="check-val">${c.current} (req: ${c.req})</div></div><i class="ri-${c.pass?'check':'close'}-circle-fill check-icon"></i></div>`).join('');
@@ -930,8 +939,8 @@ function runTgsScan(){
    EXPORT
    ============================================= */
 function doDownload(blob,filename){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),2000);}
-function exportJson(){if(!animData)return;doDownload(new Blob([JSON.stringify(animData,null,2)],{type:'application/json'}),'lottie-edited.json');}
-function exportTgs(){if(!animData)return;const out=deepCopy(animData);out.tgs=1;doDownload(new Blob([pako.gzip(JSON.stringify(out))],{type:'application/octet-stream'}),'animation.tgs');}
+function exportJson(){if(!animData)return;doDownload(new Blob([JSON.stringify(animData,null,2)],{type:'application/json'}),baseName()+'-edited.json');}
+function exportTgs(){if(!animData)return;const bytes=buildTgsBytes();if(bytes.length>64*1024)alert('Warning: this sticker is '+(bytes.length/1024).toFixed(1)+' KB. Telegram requires 64 KB or less.');doDownload(new Blob([bytes],{type:'application/octet-stream'}),baseName()+'-edited.tgs');}
 
 $('exportMenuBtn').addEventListener('click',()=>{
   if(!animData)return alert('Load a Lottie file first.');
