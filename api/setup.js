@@ -7,7 +7,7 @@ module.exports = async (req, res) => {
   const out = await api('setWebhook', {
     url: base + '/api/webhook',
     secret_token: process.env.WEBHOOK_SECRET,
-    allowed_updates: ['message'],
+    allowed_updates: ['message', 'callback_query'],
     drop_pending_updates: true
   });
   res.status(200).json({ webhook: base + '/api/webhook', result: out });

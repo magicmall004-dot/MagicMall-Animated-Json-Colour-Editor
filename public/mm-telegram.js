@@ -42,25 +42,31 @@
     clearTimeout(t._h); t._h = setTimeout(() => (t.style.display = 'none'), 3500);
   }
 
-  // Every export goes through doDownload -> send via bot
-  const nativeDownload = window.doDownload;
+  // Smaller JSON: no indentation + rounded numbers (same trick the TGS export uses)
+  window.exportJson = function () {
+    if (!animData) return;
+    const txt = JSON.stringify(animData, (k, v) => (typeof v === 'number' ? Math.round(v * 1e4) / 1e4 : v));
+    window.doDownload(new Blob([txt], { type: 'application/json' }), baseName() + '-edited.json');
+  };
+
+  // Every export goes through doDownload -> gzip -> send via bot (once)
+  let sending = false;
   window.doDownload = async function (blob, filename) {
-    if (blob.size > MAX) {
-      alert('File is ' + (blob.size / 1048576).toFixed(1) + ' MB. Bot send limit is 4 MB.');
-      return;
-    }
+    if (sending) return;
+    sending = true;
     toast('Sending to bot…');
     try {
-      const r = await fetch('/api/send', {
-        method: 'POST',
-        headers: { 'x-init-data': initData, 'x-filename': encodeURIComponent(filename), 'content-type': 'application/octet-stream' },
-        body: blob
-      });
+      let body = new Uint8Array(await blob.arrayBuffer());
+      const headers = { 'x-init-data': initData, 'x-filename': encodeURIComponent(filename), 'content-type': 'application/octet-stream' };
+      if (body.length > 100 * 1024) { body = window.pako.gzip(body, { level: 9 }); headers['x-gzip'] = '1'; }
+      if (body.length > MAX) throw new Error('File too big (' + (body.length / 1048576).toFixed(1) + ' MB after compression, max 4 MB)');
+      const r = await fetch('/api/send', { method: 'POST', headers, body });
       if (r.status === 403) { checkJoin(); throw new Error('Join the channel first'); }
       if (!r.ok) throw new Error((await r.text()) || r.status);
       toast('✅ Sent! Check your bot chat');
       if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
     } catch (e) { toast('❌ ' + e.message); }
+    finally { setTimeout(() => (sending = false), 1500); }
   };
 
   // Channel header button
