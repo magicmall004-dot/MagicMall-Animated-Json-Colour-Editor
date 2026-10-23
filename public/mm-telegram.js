@@ -70,7 +70,8 @@
       const r = await fetch('/api/send', { method: 'POST', headers, body });
       if (r.status === 403) { checkJoin(); throw new Error('Join the channel first'); }
       if (!r.ok) throw new Error((await r.text()) || r.status);
-      toast('✅ Sent! Check your bot chat');
+      const j = await r.json().catch(() => ({}));
+      toast(j.sticker === false ? '⚠️ Sent as a file: Telegram can’t render it as a sticker' : '✅ Sent! Check your bot chat');
       if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
     } catch (e) { toast('❌ ' + e.message); }
     finally { setTimeout(() => (sending = false), 1500); }
