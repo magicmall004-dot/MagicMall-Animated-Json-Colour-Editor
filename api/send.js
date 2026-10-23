@@ -1,5 +1,5 @@
 const zlib = require('zlib');
-const { verifyInitData, isMember, readBody, TOKEN } = require('../lib/tg');
+const { api, verifyInitData, isMember, readBody, TOKEN } = require('../lib/tg');
 const C = require('../lib/cfg');
 const { makeZip } = require('../lib/zip');
 
@@ -44,13 +44,20 @@ module.exports = async (req, res) => {
     // .tgs -> ONE message: a real sticker (proves it renders) with the "Can't render" button
     if (/\.tgs$/i.test(filename)) {
       const st = await upload('sendSticker', 'sticker', user.id, buf, filename, { reply_markup: JSON.stringify(CANT_RENDER) }, 8000);
-      if (st.ok) return res.status(200).json({ ok: true });
-      // Telegram refused it as a sticker -> fall back to a file, same button
-      const doc = await upload('sendDocument', 'document', user.id, buf, filename, {
-        caption: '⚠️ Telegram could not make this a sticker (' + (st.description || 'invalid') + ')',
+      // Telegram silently turns a sticker it cannot validate into a plain file ("Unknown Track") -> detect it
+      if (st.ok && st.result && st.result.sticker) return res.status(200).json({ ok: true, sticker: true });
+      if (st.ok && st.result) await api('deleteMessage', { chat_id: user.id, message_id: st.result.message_id }).catch(() => {});
+
+      // Send a clean, readable file instead: the Lottie .json (same animation), same button
+      let out = buf, name = filename;
+      try { out = zlib.gunzipSync(buf, { maxOutputLength: MAX_FILE }); name = filename.replace(/\.tgs$/i, '') + '.json'; } catch {}
+      const nb = C.capOf(cfg, 'not_sticker');
+      const doc = await upload('sendDocument', 'document', user.id, out, name, {
+        caption: nb.caption + (st.description ? '\n\n(' + st.description + ')' : ''),
+        ...(nb.caption_entities ? { caption_entities: JSON.stringify(nb.caption_entities) } : {}),
         reply_markup: JSON.stringify(CANT_RENDER), disable_content_type_detection: 'true'
       }, 15000);
-      return doc.ok ? res.status(200).json({ ok: true }) : res.status(502).send(doc.description || 'telegram error');
+      return doc.ok ? res.status(200).json({ ok: true, sticker: false }) : res.status(502).send(doc.description || 'telegram error');
     }
 
     // Transparent GIF/WebM: Telegram re-encodes them and loses the alpha -> send inside a .zip
