@@ -1,4 +1,4 @@
-const { verifyInitData, readBody, TOKEN, CHANNEL, CHANNEL_URL } = require('../lib/tg');
+const { verifyInitData, isMember, readBody, TOKEN, CHANNEL, CHANNEL_URL } = require('../lib/tg');
 
 const MAX = 4 * 1024 * 1024; // Vercel body limit is ~4.5 MB
 
@@ -15,6 +15,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).end();
   const user = verifyInitData(req.headers['x-init-data']);
   if (!user) return res.status(401).send('auth failed');
+  if (!(await isMember(user.id)).member) return res.status(403).send('Join @' + CHANNEL + ' first');
 
   const buf = await readBody(req);
   if (!buf.length) return res.status(400).send('empty');
@@ -25,12 +26,11 @@ module.exports = async (req, res) => {
   filename = filename.replace(/[^\w.\-() ]+/g, '_').slice(0, 80);
 
   const caption = `✅ Edited with Magic Mall Colour Editor\n📢 @${CHANNEL}`;
-  const markup = JSON.stringify({ inline_keyboard: [[{ text: '📢 Join @' + CHANNEL, url: CHANNEL_URL }]] });
-
+  
   // .tgs: also send as a real sticker preview
   if (/\.tgs$/i.test(filename)) await upload('sendSticker', 'sticker', user.id, buf, filename).catch(() => {});
 
-  const out = await upload('sendDocument', 'document', user.id, buf, filename, { caption, reply_markup: markup });
+  const out = await upload('sendDocument', 'document', user.id, buf, filename, { caption });
   if (!out.ok) return res.status(502).send(out.description || 'telegram error');
   res.status(200).json({ ok: true });
 };

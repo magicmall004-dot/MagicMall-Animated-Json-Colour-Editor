@@ -1,7 +1,6 @@
-const { api, CHANNEL, CHANNEL_URL } = require('../lib/tg');
+const { api } = require('../lib/tg');
 
 const appUrl = () => (process.env.APP_URL || '').replace(/\/$/, '');
-const channelRow = [{ text: '📢 @' + CHANNEL, url: CHANNEL_URL }];
 
 async function handle(msg) {
   const chat = msg.chat.id;
@@ -21,8 +20,7 @@ async function handle(msg) {
     return api('sendMessage', {
       chat_id: chat,
       text: '👋 Welcome to *Magic Mall Colour Editor*\n\nSend me a `.tgs` sticker or Lottie `.json` file and I will open the editor for you.',
-      parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: [channelRow] }
+      parse_mode: 'Markdown'
     });
   }
 
@@ -31,7 +29,7 @@ async function handle(msg) {
     chat_id: chat,
     reply_to_message_id: msg.message_id,
     text: `🎨 File ready.\nTap the button, edit colours, then Export. The result is sent back here.`,
-    reply_markup: { inline_keyboard: [[{ text: '🎨 Edit Colours', web_app: { url } }], channelRow] }
+    reply_markup: { inline_keyboard: [[{ text: '🎨 Edit Colours', web_app: { url } }]] }
   });
 }
 

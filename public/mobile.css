@@ -1,0 +1,49 @@
+/* Phone app-shell: preview stays on top, colour list scrolls underneath */
+@media (max-width: 700px) {
+  html, body { height: 100%; overflow: hidden; }
+  body { height: 100dvh; min-height: 0; gap: 6px;
+    padding: max(6px, env(safe-area-inset-top)) 8px max(6px, env(safe-area-inset-bottom)); }
+  footer, #browserWarning { display: none !important; }
+
+  /* header: logo + toolbar; Export first and always visible */
+  header { padding: 6px 8px; gap: 6px; flex: 0 0 auto; }
+  .brand-text, #telegramBtn { display: none; }
+  .brand-logo { width: 30px; height: 30px; }
+  .toolbar { flex: 1; min-width: 0; justify-content: flex-start; }
+  #exportMenuBtn { order: -1; }
+  #exportMenuBtn span { display: inline !important; }
+
+  .file-bar { padding: 4px 8px; flex: 0 0 auto; }
+
+  main { display: flex; flex-direction: column; flex: 1; min-height: 0; height: auto;
+    overflow: hidden; gap: 6px; }
+
+  /* preview: compact, not sticky */
+  .preview-panel { position: static; flex: 0 0 auto; padding: 8px; }
+  .panel-header { margin-bottom: 6px; }
+  .anim-info { font-size: 10px; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .canvas-wrap { flex: none; height: 25dvh; max-height: none; }
+  .player-bar { margin-top: 6px; padding: 4px 8px; gap: 8px; }
+  .btn-play { width: 36px; height: 36px; min-height: 0; }
+  .filter-bar { margin-top: 6px; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .filter-bar::-webkit-scrollbar { display: none; }
+  .filter-pills { flex-shrink: 0; }
+  .filter-opts { display: flex !important; flex-shrink: 0; gap: 8px; font-size: 11px; }
+  .pill { padding: 7px 11px; }
+
+  /* editor fills the rest and scrolls inside */
+  .editor-panel { flex: 1; min-height: 0; }
+  .tabs-nav { padding: 0 6px; }
+  .tab-btn { padding: 10px 9px; font-size: 12px; }
+  .tab-pane { padding: 8px 8px max(14px, env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+
+  /* colours: 2 per row, big swatch on top */
+  #colors { display: grid !important; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .color-card { flex-direction: column !important; align-items: stretch !important; padding: 8px !important; gap: 6px !important; }
+  .color-card .color-swatch, .color-card .gradient-swatch { width: 100% !important; height: 46px !important; }
+  .color-card-body { width: 100%; }
+  .color-badge { top: 4px !important; right: 4px !important; }
+}
+@media (max-width: 700px) and (max-height: 640px) {
+  .canvas-wrap { height: 22dvh; }
+}
