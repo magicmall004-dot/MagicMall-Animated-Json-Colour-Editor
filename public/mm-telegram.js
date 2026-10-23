@@ -58,7 +58,14 @@
     try {
       let body = new Uint8Array(await blob.arrayBuffer());
       const headers = { 'x-init-data': initData, 'x-filename': encodeURIComponent(filename), 'content-type': 'application/octet-stream' };
-      if (body.length > 100 * 1024) { body = window.pako.gzip(body, { level: 9 }); headers['x-gzip'] = '1'; }
+      // transparent GIF / WebM -> bot wraps it in a .zip so Telegram keeps the alpha
+      const transparent = (/\.gif$/i.test(filename) && gifSettings.background === 'transparent') ||
+                          (/\.webm$/i.test(filename) && mp4Cfg.transparent);
+      if (transparent) headers['x-zip'] = '1';
+      if (body.length > 100 * 1024) {
+        const gz = window.pako.gzip(body, { level: 9 });
+        if (gz.length < body.length) { body = gz; headers['x-gzip'] = '1'; }
+      }
       if (body.length > MAX) throw new Error('File too big (' + (body.length / 1048576).toFixed(1) + ' MB after compression, max 4 MB)');
       const r = await fetch('/api/send', { method: 'POST', headers, body });
       if (r.status === 403) { checkJoin(); throw new Error('Join the channel first'); }
