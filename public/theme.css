@@ -129,3 +129,18 @@ input[type=range] { accent-color: var(--blue); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- Performance (all devices) ---------- */
+.color-card { content-visibility: auto; contain-intrinsic-size: auto 150px; animation-delay: calc(min(var(--i, 0), 10) * 38ms); }
+body.mmp-open::before, body.mmp-open .canvas-wrap::before, body.mmp-open .btn-play { animation-play-state: paused; }
+
+/* ---------- Smooth mode (weak phones): no blur, no moving glow, no entrance animations ---------- */
+html.lite { --surface: rgba(255,255,255,.97); --surface2: rgba(240,244,255,.9); }
+html.lite body.dark { --surface: rgba(16,23,52,.98); --surface2: rgba(255,255,255,.06); }
+html.lite body::before, html.lite .canvas-wrap::before { display: none; }
+html.lite header, html.lite .panel, html.lite .preview-panel, html.lite .editor-panel, html.lite .modal-box, html.lite .file-bar,
+html.lite .modal-overlay, html.lite .mmp-back, html.lite .mmp-sheet { backdrop-filter: none; -webkit-backdrop-filter: none; }
+html.lite header, html.lite .preview-panel, html.lite .editor-panel, html.lite .color-card, html.lite .modal-box, html.lite .btn-play { animation: none; }
+html.lite .btn, html.lite .icon-btn, html.lite .pill, html.lite .tab-btn, html.lite .color-card, html.lite .toggle-thumb { transition-duration: .1s; }
+html.lite .color-swatch, html.lite .gradient-swatch, html.lite .canvas-wrap, html.lite header, html.lite .panel, html.lite .preview-panel, html.lite .editor-panel { box-shadow: inset 0 0 0 1px var(--border2); }
+html.lite .btn-primary::after, html.lite .btn-export::after, html.lite .btn-tg::after { display: none; }

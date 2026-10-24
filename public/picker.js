@@ -65,7 +65,7 @@
 
   /* ---- UI (built once) ---- */
   let back, sheet, sv, svt, hue, hut, hexIn, oldI, newI, secs = {}, eye;
-  let target = null, orig = '#000000', H = 0, S = 0, V = 0, raf = 0, pending = null;
+  let target = null, orig = '#000000', H = 0, S = 0, V = 0, raf = 0, pending = null, last = 0;
 
   function build() {
     back = document.createElement('div'); back.className = 'mmp-back';
@@ -85,8 +85,8 @@
     oldI = q('.mmp-old i'); newI = q('.mmp-new i'); eye = q('.mmp-eye');
     sheet.querySelectorAll('.mmp-sec').forEach(s => secs[s.dataset.k] = s);
 
-    drag(sv, (e) => { const r = sv.getBoundingClientRect(); S = clamp((e.clientX - r.left) / r.width, 0, 1); V = 1 - clamp((e.clientY - r.top) / r.height, 0, 1); commit(); });
-    drag(hue, (e) => { const r = hue.getBoundingClientRect(); H = clamp((e.clientX - r.left) / r.width, 0, 1) * 359.99; commit(); });
+    drag(sv, (e) => { const r = sv.getBoundingClientRect(); S = clamp((e.clientX - r.left) / r.width, 0, 1); V = 1 - clamp((e.clientY - r.top) / r.height, 0, 1); commit(false, true); }, renderShades);
+    drag(hue, (e) => { const r = hue.getBoundingClientRect(); H = clamp((e.clientX - r.left) / r.width, 0, 1) * 359.99; commit(false, true); }, renderShades);
     hexIn.addEventListener('input', () => { const h = normHex(hexIn.value); if (h) setHex(h, true); });
     q('.mmp-old').onclick = () => setHex(orig);
     q('.mmp-ok').onclick = () => close(true);
@@ -95,11 +95,11 @@
     if (window.EyeDropper) { eye.style.display = 'block'; eye.onclick = () => new EyeDropper().open().then(r => setHex(r.sRGBHex)).catch(() => {}); }
   }
 
-  function drag(el, fn) {
+  function drag(el, fn, onEnd) {
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault(); el.setPointerCapture(e.pointerId); fn(e);
       const mv = (ev) => fn(ev);
-      const up = () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
+      const up = () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); if (onEnd) onEnd(); };
       el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
     });
   }
@@ -110,16 +110,18 @@
     S = s; V = v; commit(keepInput);
   }
 
-  function commit(keepInput) {
+  function commit(keepInput, dragging) {
     const hex = hsvHex(H, S, V);
     sv.style.setProperty('--mmp-h', hsvHex(H, 1, 1));
     svt.style.left = S * 100 + '%'; svt.style.top = (1 - V) * 100 + '%'; svt.style.background = hex;
     hut.style.left = (H / 359.99) * 100 + '%'; hut.style.background = hsvHex(H, 1, 1);
     newI.style.background = hex;
     if (!keepInput) hexIn.value = hex.toUpperCase();
-    renderShades();
+    if (!dragging) renderShades();
     pending = hex;
-    if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (target && pending) { target.value = pending; target.dispatchEvent(new Event('input', { bubbles: true })); } });
+    // send to the editor at most every 70 ms (160 ms in smooth mode) so the heavy re-render doesn't pile up
+    const gap = document.documentElement.classList.contains('lite') ? 160 : 70;
+    if (!raf) raf = setTimeout(() => { raf = 0; last = performance.now(); if (target && pending) { target.value = pending; target.dispatchEvent(new Event('input', { bubbles: true })); } }, Math.max(0, gap - (performance.now() - last)));
   }
 
   function chips(key, list) {

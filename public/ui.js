@@ -21,6 +21,7 @@
   let raf = 0;
   function sync() {
     raf = 0;
+    if (root.classList.contains('lite')) return;
     const sw = document.querySelector('#colors .color-swatch');
     const c = sw && getComputedStyle(sw).backgroundColor;
     if (c && c !== 'rgba(0, 0, 0, 0)') root.style.setProperty('--tint', c);
