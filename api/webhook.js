@@ -1,5 +1,6 @@
 const { api, OWNER_ID } = require('../lib/tg');
 const C = require('../lib/cfg');
+const store = require('../lib/store');
 const panel = require('../lib/panel');
 
 const appUrl = () => (process.env.APP_URL || '').replace(/\/$/, '');
@@ -17,6 +18,18 @@ async function handleCallback(cq) {
     return panel.callback(cq);
   }
 
+  // Owner tapped "Send fixed file" under a request -> next message he sends goes to that user
+  if (d.startsWith('fx:')) {
+    if (!isOwner(cq.from) || !cq.message) return ans('Owner only', true);
+    const uid = d.slice(3).replace(/\D/g, '');
+    await ans('Ready');
+    if (store.enabled()) { try { await store.set('fix', { uid }, 86400); } catch (e) { console.error('fix state', e.message); } }
+    return api('sendMessage', {
+      chat_id: cq.message.chat.id,
+      text: `📤 Now send or FORWARD the fixed sticker / file / any message here.\nI will deliver it to the user.\n\nuid:${uid}\n/cancel = stop`
+    });
+  }
+
   if (d !== 'cr' || !cq.message) return ans();
   await ans('Sending to admin…');            // answer FIRST so the button never looks dead
   const m = cq.message, u = cq.from, chat = m.chat.id;
@@ -30,7 +43,8 @@ async function handleCallback(cq) {
   const who = [u.first_name, u.last_name].filter(Boolean).join(' ') + (u.username ? ' @' + u.username : '');
   await api('sendMessage', {
     chat_id: OWNER_ID, reply_to_message_id: copy.result.message_id,
-    text: `🆘 Can't render\n👤 ${who}\nuid:${u.id}\n\n↩️ Reply to THIS message with the fixed .tgs / .json and the bot will deliver it to the user.`
+    text: `🆘 Can't render\n👤 ${who}\nuid:${u.id}\n\nTap the button, then forward the fixed sticker here.`,
+    reply_markup: { inline_keyboard: [[{ text: '📤 Send fixed file', callback_data: 'fx:' + u.id, style: 'primary' }]] }
   });
   await api('editMessageReplyMarkup', { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } });
   return api('sendMessage', { chat_id: chat, ...C.msgOf(cfg, 'sent_admin') });
@@ -50,12 +64,34 @@ async function handleOwnerReply(msg) {
   return true;
 }
 
+// Owner pressed "Send fixed file" earlier; this message is the fix -> copy it to the user
+async function deliverFix(msg, uid) {
+  const cfg = await C.getCfg();
+  const hasCaption = msg.document || msg.photo || msg.video || msg.animation || msg.audio;
+  const r = await api('copyMessage', {
+    chat_id: uid, from_chat_id: msg.chat.id, message_id: msg.message_id, ...(hasCaption ? C.capOf(cfg, 'fixed') : {})
+  });
+  if (r.ok) {
+    if (msg.sticker) await api('sendMessage', { chat_id: uid, ...C.msgOf(cfg, 'fixed') });
+    await store.del('fix');
+  }
+  return api('sendMessage', {
+    chat_id: msg.chat.id, reply_to_message_id: msg.message_id,
+    text: r.ok ? '✅ Delivered to the user.' : '❌ Failed: ' + r.description + '\n(The user must have started the bot.)'
+  });
+}
+
 async function handle(msg) {
   const chat = msg.chat.id;
 
   if (isOwner(msg.from) && msg.chat.type === 'private') {
-    if (msg.reply_to_message && await handleOwnerReply(msg)) return;
     const t = (msg.text || '').trim();
+    const fix = await store.get('fix');
+    if (fix && fix.uid) {
+      if (t === '/cancel') { await store.del('fix'); return api('sendMessage', { chat_id: chat, text: '✖️ Cancelled.' }); }
+      if (!t.startsWith('/')) return deliverFix(msg, fix.uid);
+    }
+    if (msg.reply_to_message && await handleOwnerReply(msg)) return;
     if (t === '/panel') return panel.showMenu(chat);
     if (await panel.input(msg)) return;
   }
