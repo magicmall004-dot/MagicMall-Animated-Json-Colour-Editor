@@ -1,7 +1,10 @@
 {
   "outputDirectory": "public",
   "functions": {
-    "api/*.js": { "maxDuration": 30 },
-    "api/send.js": { "maxDuration": 60 }
+    "api/send.js": { "maxDuration": 60 },
+    "api/webhook.js": { "maxDuration": 30 },
+    "api/file.js": { "maxDuration": 30 },
+    "api/check.js": { "maxDuration": 30 },
+    "api/setup.js": { "maxDuration": 30 }
   }
 }
