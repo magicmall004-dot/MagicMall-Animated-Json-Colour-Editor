@@ -48,15 +48,23 @@ module.exports = async (req, res) => {
       if (st.ok && st.result && st.result.sticker) return res.status(200).json({ ok: true, sticker: true });
       if (st.ok && st.result) await api('deleteMessage', { chat_id: user.id, message_id: st.result.message_id }).catch(() => {});
 
-      // Send a clean, readable file instead: the Lottie .json (same animation), same button
-      let out = buf, name = filename;
-      try { out = zlib.gunzipSync(buf, { maxOutputLength: MAX_FILE }); name = filename.replace(/\.tgs$/i, '') + '.json'; } catch {}
       const nb = C.capOf(cfg, 'not_sticker');
-      const doc = await upload('sendDocument', 'document', user.id, out, name, {
+      const fb = {
         caption: nb.caption + (st.description ? '\n\n(' + st.description + ')' : ''),
         ...(nb.caption_entities ? { caption_entities: JSON.stringify(nb.caption_entities) } : {}),
         reply_markup: JSON.stringify(CANT_RENDER), disable_content_type_detection: 'true'
-      }, 15000);
+      };
+
+      // 1) keep it a real ".tgs" file, with content-type detection off so Telegram shows the name
+      const d1 = await upload('sendDocument', 'document', user.id, buf, filename, fb, 15000);
+      const mime = (d1.ok && d1.result && d1.result.document && d1.result.document.mime_type) || '';
+      if (d1.ok && !/tgsticker/i.test(mime)) return res.status(200).json({ ok: true, sticker: false });
+      if (d1.ok) await api('deleteMessage', { chat_id: user.id, message_id: d1.result.message_id }).catch(() => {});
+
+      // 2) Telegram still labels it as a sticker file -> send the readable Lottie .json instead
+      let out = buf, name = filename;
+      try { out = zlib.gunzipSync(buf, { maxOutputLength: MAX_FILE }); name = filename.replace(/\.tgs$/i, '') + '.json'; } catch {}
+      const doc = await upload('sendDocument', 'document', user.id, out, name, fb, 15000);
       return doc.ok ? res.status(200).json({ ok: true, sticker: false }) : res.status(502).send(doc.description || 'telegram error');
     }
 
