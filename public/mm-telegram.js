@@ -31,7 +31,7 @@
   tg.ready(); tg.expand();
   const initData = tg.initData;
 
-  function toast(msg) {
+  function toast(msg, ms) {
     let t = document.getElementById('mmToast');
     if (!t) {
       t = document.createElement('div'); t.id = 'mmToast';
@@ -39,7 +39,7 @@
       document.body.appendChild(t);
     }
     t.textContent = msg; t.style.display = 'block';
-    clearTimeout(t._h); t._h = setTimeout(() => (t.style.display = 'none'), 3500);
+    clearTimeout(t._h); t._h = setTimeout(() => (t.style.display = 'none'), ms || 3500);
   }
 
   // Smaller JSON: no indentation + rounded numbers (same trick the TGS export uses)
@@ -54,7 +54,7 @@
   window.doDownload = async function (blob, filename) {
     if (sending) return;
     sending = true;
-    toast('Sending to bot…');
+    toast('Sending to bot… (can take up to 40 s, please wait)', 60000);
     try {
       let body = new Uint8Array(await blob.arrayBuffer());
       const headers = { 'x-init-data': initData, 'x-filename': encodeURIComponent(filename), 'content-type': 'application/octet-stream' };
@@ -71,6 +71,8 @@
       if (r.status === 403) { checkJoin(); throw new Error('Join the channel first'); }
       if (!r.ok) throw new Error((await r.text()) || r.status);
       const j = await r.json().catch(() => ({}));
+      if (j.pending) { toast('⏳ Telegram is slow. It will arrive in your bot chat soon, please do not send again.', 9000); return; }
+      if (j.dup) { toast('ℹ️ This file was just sent, check your bot chat.', 6000); return; }
       toast(j.sticker === false ? '⚠️ Sent as a file: Telegram can’t render it as a sticker' : '✅ Sent! Check your bot chat');
       if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
     } catch (e) { toast('❌ ' + e.message); }

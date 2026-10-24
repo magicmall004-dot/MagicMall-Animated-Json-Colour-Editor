@@ -2,6 +2,8 @@ const zlib = require('zlib');
 const { api, verifyInitData, isMember, readBody, TOKEN } = require('../lib/tg');
 const C = require('../lib/cfg');
 const { makeZip } = require('../lib/zip');
+const store = require('../lib/store');
+const crypto = require('crypto');
 
 const MAX_UPLOAD = 4 * 1024 * 1024;   // Vercel request limit (compressed size)
 const MAX_FILE = 20 * 1024 * 1024;    // after un-gzip
@@ -36,6 +38,11 @@ module.exports = async (req, res) => {
     try { filename = decodeURIComponent(req.headers['x-filename'] || 'animation'); } catch {}
     filename = filename.replace(/[^\w.\-() ]+/g, '_').slice(0, 80);
 
+    // same file from same user within 90 s = a retry/double tap -> don't send twice
+    const fileKey = 'snd:' + user.id + ':' + crypto.createHash('sha1').update(buf).update(filename).digest('hex').slice(0, 20);
+    if (!(await store.claim(fileKey, 90))) return res.status(200).json({ ok: true, dup: true });
+    const release = () => store.del(fileKey).catch(() => {});
+
     const cfg = await C.getCfg();
     const CANT_RENDER = { inline_keyboard: [[C.btn(cfg, 'btn_cr', { callback_data: 'cr' })]] };
     const cap = C.capOf(cfg, 'export_caption');
@@ -43,7 +50,14 @@ module.exports = async (req, res) => {
 
     // .tgs -> ONE message: a real sticker (proves it renders) with the "Can't render" button
     if (/\.tgs$/i.test(filename)) {
-      const st = await upload('sendSticker', 'sticker', user.id, buf, filename, { reply_markup: JSON.stringify(CANT_RENDER) }, 8000);
+      // Telegram can take a long time to validate complex animations -> wait up to 32 s
+      let st;
+      try {
+        st = await upload('sendSticker', 'sticker', user.id, buf, filename, { reply_markup: JSON.stringify(CANT_RENDER) }, 32000);
+      } catch (e) {
+        if (e.name === 'TimeoutError' || e.name === 'AbortError') return res.status(202).json({ ok: true, pending: true });
+        throw e;
+      }
       // Telegram silently turns a sticker it cannot validate into a plain file ("Unknown Track") -> detect it
       if (st.ok && st.result && st.result.sticker) return res.status(200).json({ ok: true, sticker: true });
       if (st.ok && st.result) await api('deleteMessage', { chat_id: user.id, message_id: st.result.message_id }).catch(() => {});
@@ -56,7 +70,7 @@ module.exports = async (req, res) => {
       };
 
       // 1) keep it a real ".tgs" file, with content-type detection off so Telegram shows the name
-      const d1 = await upload('sendDocument', 'document', user.id, buf, filename, fb, 15000);
+      const d1 = await upload('sendDocument', 'document', user.id, buf, filename, fb, 10000);
       const mime = (d1.ok && d1.result && d1.result.document && d1.result.document.mime_type) || '';
       if (d1.ok && !/tgsticker/i.test(mime)) return res.status(200).json({ ok: true, sticker: false });
       if (d1.ok) await api('deleteMessage', { chat_id: user.id, message_id: d1.result.message_id }).catch(() => {});
@@ -64,8 +78,9 @@ module.exports = async (req, res) => {
       // 2) Telegram still labels it as a sticker file -> send the readable Lottie .json instead
       let out = buf, name = filename;
       try { out = zlib.gunzipSync(buf, { maxOutputLength: MAX_FILE }); name = filename.replace(/\.tgs$/i, '') + '.json'; } catch {}
-      const doc = await upload('sendDocument', 'document', user.id, out, name, fb, 15000);
-      return doc.ok ? res.status(200).json({ ok: true, sticker: false }) : res.status(502).send(doc.description || 'telegram error');
+      const doc = await upload('sendDocument', 'document', user.id, out, name, fb, 10000);
+      if (!doc.ok) { release(); return res.status(502).send(doc.description || 'telegram error'); }
+      return res.status(200).json({ ok: true, sticker: false });
     }
 
     // Transparent GIF/WebM: Telegram re-encodes them and loses the alpha -> send inside a .zip
@@ -76,10 +91,10 @@ module.exports = async (req, res) => {
       fields.caption += '\n\n📦 Unzip it to keep the transparent background.';
     }
     const out = await upload('sendDocument', 'document', user.id, buf, filename, fields, 20000);
-    if (!out.ok) return res.status(502).send(out.description || 'telegram error');
+    if (!out.ok) { release(); return res.status(502).send(out.description || 'telegram error'); }
     res.status(200).json({ ok: true });
   } catch (e) {
     console.error('send error', e);
-    res.status(504).send('Telegram did not answer in time, try again');
+    res.status(504).send('Telegram is slow. The file may still arrive in your chat, please wait before sending again.');
   }
 };
