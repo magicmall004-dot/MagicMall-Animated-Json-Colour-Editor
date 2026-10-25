@@ -64,6 +64,38 @@ async function handleOwnerReply(msg) {
   return true;
 }
 
+const isPic = (ch) => /\p{Extended_Pictographic}/u.test(ch);
+const strip = (x) => (x || '').replace(/\uFE0F/g, '');
+
+// Emoji message -> find its animated sticker -> open the editor
+async function handleEmoji(msg, cfg) {
+  const chat = msg.chat.id;
+  let found = [];
+  const ents = (msg.entities || []).filter((e) => e.type === 'custom_emoji');
+  if (ents.length) {
+    const ids = [...new Set(ents.map((e) => e.custom_emoji_id))].slice(0, 8);
+    const r = await api('getCustomEmojiStickers', { custom_emoji_ids: ids });
+    if (r.ok) found = r.result;
+    if (!found.length || !found.some((s) => s.is_animated)) return api('sendMessage', { chat_id: chat, ...C.msgOf(cfg, 'not_animated') });
+  } else if (msg.text && msg.text.length <= 16 && isPic(msg.text)) {
+    const want = [...new Set([...strip(msg.text)].filter(isPic))].slice(0, 6);
+    const set = await api('getStickerSet', { name: 'AnimatedEmojies' });
+    if (set.ok) for (const w of want) { const st = set.result.stickers.find((x) => strip(x.emoji) === w); if (st) found.push(st); }
+    if (!found.length) return api('sendMessage', { chat_id: chat, ...C.msgOf(cfg, 'emoji_none') });
+  } else return false;
+
+  const anim = found.filter((s) => s.is_animated);
+  const rows = []; let row = [];
+  for (const st of anim) {
+    const url = `${appUrl()}/?f=${encodeURIComponent(st.file_id)}&n=${encodeURIComponent('emoji-' + st.file_unique_id + '.tgs')}`;
+    const b = C.btn(cfg, 'btn_edit', { web_app: { url } });
+    if (anim.length > 1) b.text += ' ' + (st.emoji || '');
+    row.push(b); if (row.length === 2) { rows.push(row); row = []; }
+  }
+  if (row.length) rows.push(row);
+  return api('sendMessage', { chat_id: chat, reply_to_message_id: msg.message_id, ...C.msgOf(cfg, 'ready'), reply_markup: { inline_keyboard: rows } });
+}
+
 // Owner pressed "Send fixed file" earlier; this message is the fix -> copy it to the user
 async function deliverFix(msg, uid) {
   const cfg = await C.getCfg();
@@ -97,6 +129,7 @@ async function handle(msg) {
   }
 
   const cfg = await C.getCfg();
+  if (msg.text && !msg.text.startsWith('/')) { const h = await handleEmoji(msg, cfg); if (h) return h; }
   let fileId = null, name = null;
   if (msg.sticker) {
     if (!msg.sticker.is_animated) return api('sendMessage', { chat_id: chat, ...C.msgOf(cfg, 'not_animated') });
