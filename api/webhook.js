@@ -136,7 +136,7 @@ async function handle(msg) {
     fileId = msg.sticker.file_id; name = (msg.sticker.set_name || 'sticker') + '.tgs';
   } else if (msg.document) {
     const n = (msg.document.file_name || '').toLowerCase();
-    if (n.endsWith('.tgs') || n.endsWith('.json')) { fileId = msg.document.file_id; name = msg.document.file_name; }
+    if (n.endsWith('.tgs') || n.endsWith('.json') || n.endsWith('.svg')) { fileId = msg.document.file_id; name = msg.document.file_name; }
   }
 
   if (!fileId) return api('sendMessage', { chat_id: chat, ...C.msgOf(cfg, 'welcome') });

@@ -140,7 +140,7 @@
   const recent = () => { try { return JSON.parse(localStorage.getItem('mm_recent') || '[]'); } catch (e) { return []; } };
   function animColours() {
     const set = new Set();
-    document.querySelectorAll('#colors .color-swatch').forEach((el) => {
+    document.querySelectorAll('#colors .color-swatch, #mmsv .mmsv-chip').forEach((el) => {
       const m = getComputedStyle(el).backgroundColor.match(/\d+(\.\d+)?/g);
       if (m && m.length >= 3) set.add(rgbToHex(+m[0], +m[1], +m[2]));
     });
