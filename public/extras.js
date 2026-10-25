@@ -24,6 +24,12 @@
   .mmsv-chips{grid-column:1/-1;display:flex;gap:9px;flex-wrap:wrap;padding-top:6px}
   .mmsv-chip{position:relative;width:42px;height:42px;border-radius:13px;box-shadow:inset 0 0 0 1px #fff4,0 5px 12px -6px #000}.mmsv-chip input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
   @media(min-width:900px){#mmsv .body{flex-direction:row}#mmsv .prev{flex:1;height:auto}#mmsv .list{flex:1}}`;
+  css.textContent += `.mmx-box{max-height:92dvh;overflow-y:auto}.mmx-big{flex:1;height:150px;border-radius:14px;overflow:hidden;background:repeating-conic-gradient(#8883 0 25%,#0000 0 50%) 0 0/16px 16px}.mmx-big img{width:100%;height:100%;object-fit:contain}
+  .mmx-step{width:40px;height:40px;border:0;border-radius:50%;background:var(--surface2,#fff2);color:inherit;font-size:22px;cursor:pointer}
+  .mmx-strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;padding:4px 2px 10px;margin-bottom:6px}
+  .mmx-th{flex:none;scroll-snap-align:center;width:68px;border:2px solid transparent;border-radius:12px;padding:3px;background:var(--surface2,#fff1);cursor:pointer;text-align:center;font-size:11px;color:inherit}.mmx-th.on{border-color:var(--blue,#2f86ff)}
+  .mmx-th img{width:100%;height:56px;object-fit:contain;border-radius:8px;display:block;background:repeating-conic-gradient(#8883 0 25%,#0000 0 50%) 0 0/10px 10px}
+  .mmsv-chev{width:28px;height:28px;border:0;border-radius:8px;background:none;color:inherit;font-size:15px;cursor:pointer;margin-right:4px}`;
   document.head.appendChild(css);
 
   function dlg(html) {
@@ -82,32 +88,44 @@
     return new XMLSerializer().serializeToString(s);
   }
   function svgDialog() {
-    const a = Math.round(animData.ip), z = Math.round(animData.op) - 1, cur = Math.round(animInstance.currentFrame || 0);
+    const a = Math.round(animData.ip), z = Math.round(animData.op) - 1, saved = Math.round(animInstance.currentFrame || 0), enc = new TextEncoder(), urls = [];
+    let sel = Math.min(z, Math.max(a, saved)), big = '';
+    const url = (svg) => { const u = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' })); urls.push(u); return u; };
     const b = dlg(`<h3>Export as SVG</h3>
-      <label><input type="radio" name="m" value="cur" checked> Current frame (${cur})</label>
-      <label><input type="radio" name="m" value="one"> One frame <input type="number" id="mxF" min="${a}" max="${z}" value="${cur}"></label>
+      <div style="display:flex;align-items:center;gap:10px"><button class="mmx-step" id="mxP">‹</button><div class="mmx-big"><img id="mxBig" alt=""></div><button class="mmx-step" id="mxN">›</button></div>
+      <div style="text-align:center;font-weight:700;margin:8px 0">Frame <span id="mxL"></span> of ${z}</div>
+      <div class="mmx-strip" id="mxStrip"></div>
+      <label><input type="radio" name="m" value="one" checked> Only the selected frame</label>
       <label><input type="radio" name="m" value="all"> All frames as .zip, every <input type="number" id="mxS" min="1" max="30" value="1"> frame(s)</label>
-      <p style="font-size:12px;opacity:.65;margin:4px 0 14px">${z - a + 1} frames in total. Big animations make big zips; use a larger step if sending fails.</p>
+      <p style="font-size:12px;opacity:.65;margin:4px 0 14px">${z - a + 1} frames in total. Tap a picture or use ‹ › to pick the exact frame.</p>
       <button class="mmx-btn" id="mxGo">Export</button><button class="mmx-btn alt" id="mxNo">Cancel</button>`);
-    b.querySelector('#mxNo').onclick = () => b.remove();
-    b.querySelector('#mxGo').onclick = async (e) => {
-      const m = b.querySelector('input[name=m]:checked').value, btn = e.target, saved = Math.round(animInstance.currentFrame || 0), enc = new TextEncoder();
-      const clampF = (v) => Math.min(z, Math.max(a, Math.round(+v || 0)));
-      btn.disabled = true;
+    const q = (x) => b.querySelector(x), clampF = (v) => Math.min(z, Math.max(a, Math.round(+v || 0)));
+    const restore = () => { urls.forEach(URL.revokeObjectURL); try { animInstance.goToAndStop(saved, true); if (!playerPaused) animInstance.play(); } catch (e) {} };
+    const close = () => { restore(); b.remove(); };
+    b.addEventListener('click', (e) => { if (e.target === b) close(); });
+    const show = (f) => { sel = clampF(f); q('#mxL').textContent = sel; if (big) URL.revokeObjectURL(big); big = url(frameSvg(sel)); q('#mxBig').src = big;
+      q('input[value=one]').checked = true; b.querySelectorAll('.mmx-th').forEach((t) => t.classList.toggle('on', +t.dataset.f === sel)); };
+    q('#mxP').onclick = () => show(sel - 1); q('#mxN').onclick = () => show(sel + 1); q('#mxNo').onclick = close;
+    show(sel);
+    (async () => {   // horizontal strip of sample frames (max 20) rendered one by one
+      const n = Math.min(20, z - a + 1), fr = [...new Set(Array.from({ length: n }, (_, i) => Math.round(a + i * (z - a) / (n - 1 || 1))))];
+      for (const f of fr) { if (!b.isConnected) return; const t = document.createElement('button'); t.className = 'mmx-th'; t.dataset.f = f; t.innerHTML = `<img alt=""><span>${f}</span>`;
+        t.firstChild.src = url(frameSvg(f)); t.onclick = () => show(f); q('#mxStrip').appendChild(t); await new Promise((r) => setTimeout(r)); }
+      if (b.isConnected) show(sel);
+    })();
+    q('#mxGo').onclick = async (e) => {
+      const btn = e.target; btn.disabled = true;
       try {
-        if (m === 'all') {
-          const step = Math.max(1, +b.querySelector('#mxS').value || 1), files = [];
+        if (q('input[name=m]:checked').value === 'all') {
+          const step = Math.max(1, +q('#mxS').value || 1), files = [], tot = Math.ceil((z - a + 1) / step);
           for (let f = a; f <= z; f += step) {
             files.push({ name: `${baseName()}-${String(f).padStart(4, '0')}.svg`, data: enc.encode(frameSvg(f)) });
-            if (files.length % 4 === 0) { btn.textContent = `Rendering… ${Math.round((f - a) / (z - a || 1) * 100)}%`; await new Promise((r) => setTimeout(r)); }
+            if (files.length % 3 === 0) { const pc = files.length / tot * 100; btn.textContent = `Rendering… ${Math.round(pc)}%`; if (window.mmLive) window.mmLive.update('rendering frames…', `frame ${f} / ${z}`, pc * 0.5); await new Promise((r) => setTimeout(r)); }
           }
-          btn.textContent = 'Zipping…'; await new Promise((r) => setTimeout(r));
-          window.doDownload(zip(files), `${baseName()}-svg-frames.zip`);
-        } else {
-          const f = m === 'cur' ? clampF(saved) : clampF(b.querySelector('#mxF').value);
-          window.doDownload(new Blob([frameSvg(f)], { type: 'image/svg+xml' }), `${baseName()}-frame-${f}.svg`);
-        }
-      } finally { animInstance.goToAndStop(saved, true); if (!playerPaused) animInstance.play(); b.remove(); }
+          btn.textContent = 'Zipping…'; if (window.mmLive) window.mmLive.update('zipping…', files.length + ' files', 50); await new Promise((r) => setTimeout(r));
+          const zb = zip(files); restore(); b.remove(); window.doDownload(zb, `${baseName()}-svg-frames.zip`);
+        } else { const sv = frameSvg(sel); restore(); b.remove(); window.doDownload(new Blob([sv], { type: 'image/svg+xml' }), `${baseName()}-frame-${sel}.svg`); }
+      } catch (err) { alert(err.message); close(); }
     };
   }
   $('exportMenuBtn').addEventListener('click', () => {
@@ -149,26 +167,32 @@
     const name = file.name.replace(/\.svg$/i, ''), prev = ed.querySelector('.prev'); prev.innerHTML = ''; prev.appendChild(root);
     ed.querySelector('b').textContent = file.name; ed.classList.add('on');
     const vb = vbox(root); if (!root.getAttribute('viewBox')) root.setAttribute('viewBox', vb.join(' '));
-    let host = root, kids = () => [...host.children].filter((c) => !/^(defs|style|title|desc|metadata)$/.test(c.localName));
-    while (kids().length === 1 && kids()[0].localName === 'g' && !kids()[0].getAttribute('transform')) host = kids()[0];
-    const items = [], groups = [];
-    kids().forEach((g, i) => {
-      g.id = 'mmg-' + i; const its = [];
-      [...(g.matches(SHAPES) ? [g] : []), ...g.querySelectorAll(SHAPES)].forEach((n) => { const cs = getComputedStyle(n);
-        ['fill', 'stroke'].forEach((p) => { const h = hexOf(cs[p]); if (h) { n.style[p] = h; const it = { el: n, prop: p, hex: h }; its.push(it); items.push(it); } }); });
-      groups.push({ g, its, name: g.getAttribute('id') && !/^mmg-/.test(g.getAttribute('id')) ? g.getAttribute('id') : (g.localName === 'g' ? 'Group ' : g.localName[0].toUpperCase() + g.localName.slice(1) + ' ') + (i + 1) });
-    });
-    const stops = [...root.querySelectorAll('stop')].map((n) => ({ el: n, prop: 'stopColor', hex: hexOf(getComputedStyle(n).stopColor) })).filter((s) => s.hex);
-    state = { name, root, vb, items, groups, stops }; render();
+    const kidsOf = (h) => [...h.children].filter((c) => /^(g|path|rect|circle|ellipse|polygon|polyline|line|text)$/.test(c.localName));
+    let host = root; while (kidsOf(host).length === 1 && kidsOf(host)[0].localName === 'g' && !kidsOf(host)[0].getAttribute('transform')) host = kidsOf(host)[0];
+    const items = []; let uid = 0;
+    const cap = (t) => t[0].toUpperCase() + t.slice(1);
+    // every group / path becomes a node: group > layers > paths (expandable)
+    const mk = (n, i) => {
+      const oid = n.getAttribute('id'); n.id = 'mmg-' + uid++;
+      const node = { el: n, its: [], kids: [], open: false, name: oid || (n.localName === 'g' ? 'Group ' : cap(n.localName) + ' ') + (i + 1) };
+      if (n.matches(SHAPES)) { const cs = getComputedStyle(n); ['fill', 'stroke'].forEach((p) => { const h = hexOf(cs[p]); if (h) { n.style[p] = h; const it = { el: n, prop: p, hex: h }; node.its.push(it); items.push(it); } }); }
+      if (n.localName === 'g') { node.kids = kidsOf(n).map(mk); node.kids.forEach((k) => node.its.push(...k.its)); }
+      return node;
+    };
+    const tree = kidsOf(host).map(mk);
+    const stops = [...root.querySelectorAll('stop')].map((n) => ({ el: n, prop: 'stopColor', hex: hexOf(getComputedStyle(n).stopColor) })).filter((x) => x.hex);
+    state = { name, root, vb, items, tree, stops }; render();
   };
 
   function render() {
-    const list = ed.querySelector('.list'); list.innerHTML = '';
-    const add = (name, sub, its, g) => {
-      const c = el('div', 'mmsv-card'), th = el('div', 'mmsv-th'), mid = el('div'), eye = el('button', 'mmsv-eye', '👁'), chips = el('div', 'mmsv-chips');
-      if (g) th.innerHTML = `<svg viewBox="${state.vb.join(' ')}"><use href="#${g.id}"/></svg>`; else th.style.background = 'linear-gradient(135deg,#f55,#fc3,#5d5,#3cf,#85f)';
-      mid.append(el('div', 'nm', name), el('div', 'sub', sub));
-      if (g) eye.onclick = () => { const h = g.style.display === 'none'; g.style.display = h ? '' : 'none'; eye.style.opacity = h ? 1 : .35; }; else eye.style.visibility = 'hidden';
+    const list = ed.querySelector('.list'), top = list.scrollTop; list.innerHTML = '';
+    const add = (title, sub, its, node, depth) => {
+      const c = el('div', 'mmsv-card'), th = el('div', 'mmsv-th'), mid = el('div'), eye = el('button', 'mmsv-eye', '👁'), chips = el('div', 'mmsv-chips'), nm = el('div', 'nm');
+      c.style.marginLeft = depth * 16 + 'px';
+      if (node) th.innerHTML = `<svg viewBox="${state.vb.join(' ')}"><use href="#${node.el.id}"/></svg>`; else th.style.background = 'linear-gradient(135deg,#f55,#fc3,#5d5,#3cf,#85f)';
+      if (node && node.kids.length) { const ch = el('button', 'mmsv-chev', node.open ? '▾' : '▸'); ch.setAttribute('aria-label', node.open ? 'Collapse' : 'Expand'); ch.onclick = () => { node.open = !node.open; render(); }; nm.append(ch); }
+      nm.append(document.createTextNode(title)); mid.append(nm, el('div', 'sub', sub));
+      if (node) eye.onclick = () => { const h = node.el.style.display === 'none'; node.el.style.display = h ? '' : 'none'; eye.style.opacity = h ? 1 : .35; }; else eye.style.visibility = 'hidden';
       c.append(th, mid, eye, chips);
       [...new Set(its.map((i) => i.hex))].forEach((hx) => {
         let cur = hx; const ch = el('label', 'mmsv-chip'), inp = el('input'); inp.type = 'color'; inp.value = hx; ch.style.background = hx; ch.appendChild(inp);
@@ -177,10 +201,12 @@
         chips.appendChild(ch);
       });
       list.appendChild(c);
+      if (node && node.open) node.kids.forEach((k) => add(k.name, `${new Set(k.its.map((i) => i.hex)).size} colours` + (k.kids.length ? ` · ${k.kids.length} layers` : ''), k.its, k, depth + 1));
     };
-    add('All colours', `${new Set(state.items.map((i) => i.hex)).size} colours, change them everywhere`, state.items);
-    state.groups.forEach((g) => add(g.name, `${new Set(g.its.map((i) => i.hex)).size} colours`, g.its, g.g));
-    if (state.stops.length) add('Gradients', `${new Set(state.stops.map((i) => i.hex)).size} colours in gradients`, state.stops);
+    add('All colours', `${new Set(state.items.map((i) => i.hex)).size} colours, change them everywhere`, state.items, null, 0);
+    state.tree.forEach((n) => add(n.name, `${new Set(n.its.map((i) => i.hex)).size} colours` + (n.kids.length ? ` · ${n.kids.length} layers` : ''), n.its, n, 0));
+    if (state.stops.length) add('Gradients', `${new Set(state.stops.map((i) => i.hex)).size} colours in gradients`, state.stops, null, 0);
+    list.scrollTop = top;
   }
   function serialize() {
     const c = state.root.cloneNode(true); c.querySelectorAll('[id^=mmg-]').forEach((e) => e.removeAttribute('id'));

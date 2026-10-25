@@ -3,6 +3,7 @@ const { api, verifyInitData, isMember, readBody, TOKEN } = require('../lib/tg');
 const C = require('../lib/cfg');
 const { makeZip } = require('../lib/zip');
 const store = require('../lib/store');
+const S = require('../lib/status');
 const crypto = require('crypto');
 
 const MAX_UPLOAD = 4 * 1024 * 1024;   // Vercel request limit (compressed size)
@@ -38,11 +39,18 @@ module.exports = async (req, res) => {
     try { filename = decodeURIComponent(req.headers['x-filename'] || 'animation'); } catch {}
     filename = filename.replace(/[^\w.\-() ]+/g, '_').slice(0, 80);
 
+    // live status (draft) stages, same draft the mini app has been updating
+    const dId = parseInt(req.headers['x-draft'], 10) || 0; let jobInfo = {};
+    try { jobInfo = JSON.parse(decodeURIComponent(req.headers['x-job'] || '{}')); } catch {}
+    const stat = (stage, detail, pct) => (dId ? S.draft(user.id, dId, { ...jobInfo, stage, detail, pct }) : null);
+    await stat('unpacking…', filename, 92);
+
     // same file from same user within 90 s = a retry/double tap -> don't send twice
     const fileKey = 'snd:' + user.id + ':' + crypto.createHash('sha1').update(buf).update(filename).digest('hex').slice(0, 20);
     if (!(await store.claim(fileKey, 90))) return res.status(200).json({ ok: true, dup: true });
     const release = () => store.del(fileKey).catch(() => {});
 
+    await stat('sending to Telegram…', filename, 95);
     const cfg = await C.getCfg();
     const CANT_RENDER = { inline_keyboard: [[C.btn(cfg, 'btn_cr', { callback_data: 'cr' })]] };
     const cap = C.capOf(cfg, 'export_caption');
