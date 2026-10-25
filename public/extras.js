@@ -168,28 +168,41 @@
     ed.querySelector('b').textContent = file.name; ed.classList.add('on');
     const vb = vbox(root); if (!root.getAttribute('viewBox')) root.setAttribute('viewBox', vb.join(' '));
     const kidsOf = (h) => [...h.children].filter((c) => /^(g|path|rect|circle|ellipse|polygon|polyline|line|text)$/.test(c.localName));
-    let host = root; while (kidsOf(host).length === 1 && kidsOf(host)[0].localName === 'g' && !kidsOf(host)[0].getAttribute('transform')) host = kidsOf(host)[0];
+    let host = root; const hostChain = [root]; while (kidsOf(host).length === 1 && kidsOf(host)[0].localName === 'g' && !kidsOf(host)[0].getAttribute('transform')) { host = kidsOf(host)[0]; hostChain.push(host); }
     const items = []; let uid = 0;
     const cap = (t) => t[0].toUpperCase() + t.slice(1);
     // every group / path becomes a node: group > layers > paths (expandable)
-    const mk = (n, i) => {
+    const mk = (anc) => (n, i) => {
       const oid = n.getAttribute('id'); n.id = 'mmg-' + uid++;
-      const node = { el: n, its: [], kids: [], open: false, name: oid || (n.localName === 'g' ? 'Group ' : cap(n.localName) + ' ') + (i + 1) };
+      const node = { el: n, anc, its: [], kids: [], open: false, name: oid || (n.localName === 'g' ? 'Group ' : cap(n.localName) + ' ') + (i + 1) };
       if (n.matches(SHAPES)) { const cs = getComputedStyle(n); ['fill', 'stroke'].forEach((p) => { const h = hexOf(cs[p]); if (h) { n.style[p] = h; const it = { el: n, prop: p, hex: h }; node.its.push(it); items.push(it); } }); }
-      if (n.localName === 'g') { node.kids = kidsOf(n).map(mk); node.kids.forEach((k) => node.its.push(...k.its)); }
+      if (n.localName === 'g') { node.kids = kidsOf(n).map(mk([...anc, n])); node.kids.forEach((k) => node.its.push(...k.its)); }
       return node;
     };
-    const tree = kidsOf(host).map(mk);
+    const tree = kidsOf(host).map(mk(hostChain));
     const stops = [...root.querySelectorAll('stop')].map((n) => ({ el: n, prop: 'stopColor', hex: hexOf(getComputedStyle(n).stopColor) })).filter((x) => x.hex);
     state = { name, root, vb, items, tree, stops }; render();
   };
+
+  // Thumbnail = the layer drawn inside copies of its parents (transform, clip, inherited fill), so inner paths show in the right place
+  const NS = 'http://www.w3.org/2000/svg';
+  function thumb(node) {
+    const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', state.vb.join(' ')); let cur = svg;
+    node.anc.forEach((a) => {
+      const g = document.createElementNS(NS, 'g');
+      [...a.attributes].forEach((x) => { if (!/^(id|width|height|viewBox|version|xmlns.*|x|y|preserveAspectRatio)$/i.test(x.name)) g.setAttribute(x.name, x.value); });
+      cur.appendChild(g); cur = g;
+    });
+    const u = document.createElementNS(NS, 'use'); u.setAttribute('href', '#' + node.el.id); cur.appendChild(u);
+    return svg;
+  }
 
   function render() {
     const list = ed.querySelector('.list'), top = list.scrollTop; list.innerHTML = '';
     const add = (title, sub, its, node, depth) => {
       const c = el('div', 'mmsv-card'), th = el('div', 'mmsv-th'), mid = el('div'), eye = el('button', 'mmsv-eye', '👁'), chips = el('div', 'mmsv-chips'), nm = el('div', 'nm');
       c.style.marginLeft = depth * 16 + 'px';
-      if (node) th.innerHTML = `<svg viewBox="${state.vb.join(' ')}"><use href="#${node.el.id}"/></svg>`; else th.style.background = 'linear-gradient(135deg,#f55,#fc3,#5d5,#3cf,#85f)';
+      if (node) th.appendChild(thumb(node)); else th.style.background = 'linear-gradient(135deg,#f55,#fc3,#5d5,#3cf,#85f)';
       if (node && node.kids.length) { const ch = el('button', 'mmsv-chev', node.open ? '▾' : '▸'); ch.setAttribute('aria-label', node.open ? 'Collapse' : 'Expand'); ch.onclick = () => { node.open = !node.open; render(); }; nm.append(ch); }
       nm.append(document.createTextNode(title)); mid.append(nm, el('div', 'sub', sub));
       if (node) eye.onclick = () => { const h = node.el.style.display === 'none'; node.el.style.display = h ? '' : 'none'; eye.style.opacity = h ? 1 : .35; }; else eye.style.visibility = 'hidden';
