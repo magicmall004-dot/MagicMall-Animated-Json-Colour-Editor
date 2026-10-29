@@ -3,8 +3,8 @@
 
 const $=s=>document.querySelector(s);
 let data=null,refs=[],groups=[],anim=null,fname='sticker',tmr,cmpOn=false,hist=[],hi=-1;
-let TU=[0,1,0],shown=null,seq=0,seeking=false,lastSeek=0,wasPlaying=false;
-const fxEff=()=>document.documentElement.classList.contains('lite')||matchMedia('(prefers-reduced-motion:reduce)').matches?'lite':'full';
+let gfx='high',TU=[0,1,0],shown=null,seq=0,seeking=false,lastSeek=0,wasPlaying=false;
+const fxEff=()=>document.documentElement.classList.contains('lite')||matchMedia('(prefers-reduced-motion:reduce)').matches?'lite':(gfx==='balanced'?'mid':'full');
 function ef(){const n=performance.now();if(seeking||n-lastSeek<(fxEff()==='full'?33:120))return;lastSeek=n;$('#swseek').value=anim.currentFrame}
 function syncTune(){const[a,b,c]=TU;$('#swth').value=a;$('#swts').value=b*100;$('#swtl').value=c;$('#swth').nextElementSibling.textContent=a+'°';$('#swts').nextElementSibling.textContent=Math.round(b*100)+'%';$('#swtl').nextElementSibling.textContent=c}
 const PRE=['#2AABEE','#FF3EA5','#7C5CFF','#22C55E','#FFB020','#FF5A4F','#FFFFFF','#111111'];
@@ -180,4 +180,12 @@ syncTune();
 document.querySelectorAll('#viewSwitch [data-view]').forEach(b=>b.addEventListener('click',()=>{const v=b.dataset.view;document.body.dataset.view=v;$('#swapView').hidden=v!=='swap';
  document.querySelectorAll('#viewSwitch [data-view]').forEach(x=>x.classList.toggle('active',x===b));if(v!=='swap'&&anim)anim.pause();else if(anim&&!wasPlaying)anim.play();window.scrollTo({top:0})}));
 
+const root=document.documentElement,LS=(k,v)=>{try{return v===undefined?localStorage.getItem(k):localStorage.setItem(k,v)}catch(e){}};
+function gfxApply(g,save){gfx=g;const lite=g==='smooth';if(root.classList.contains('lite')!==lite)root.classList.toggle('lite',lite);
+ $('#swapView').classList.toggle('calm',g==='balanced');
+ document.querySelectorAll('#swgfx button').forEach(b=>{const on=b.dataset.g===g;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});
+ if(save){LS('mm_swgfx',g);LS('mm_lite',lite?'1':'0')}if(shown)shown.a.setSubframe(g==='high')}
+$('#swgfx').onclick=e=>{const b=e.target.closest('[data-g]');if(b)gfxApply(b.dataset.g,true)};
+new MutationObserver(()=>{const l=root.classList.contains('lite');if(l&&gfx!=='smooth')gfxApply('smooth');else if(!l&&gfx==='smooth')gfxApply('high')}).observe(root,{attributes:true,attributeFilter:['class']});
+gfxApply(LS('mm_swgfx')||(root.classList.contains('lite')?'smooth':'high'));
 })();
