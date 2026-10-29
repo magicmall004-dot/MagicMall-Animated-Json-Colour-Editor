@@ -3,7 +3,7 @@
 .vs-btn{display:flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:999px;padding:8px 18px;font:600 14px var(--font-body);cursor:pointer;transition:.2s}
 .vs-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 6px 18px var(--blue-glow)}
 body[data-view=swap] :is(main,#fileBar,#undoBtn,#redoBtn,#beforeAfterBtn,#settingsBtn,#tgsScanBtn,#exportMenuBtn,#mainToolbar label.btn){display:none!important}
-#swapView{max-width:1040px;margin:0 auto;padding:14px 14px 60px;color:var(--text)}
+#swapView{width:100%;max-width:1040px;margin:0 auto;padding:14px 14px 60px;color:var(--text);flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 #swapView[hidden]{display:none}
 #swapView :is(h2){font:700 16px var(--font-body);margin-bottom:4px}
 #swapView .sw-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
@@ -45,4 +45,4 @@ html:not(.lite) #swapView .row{animation:swrow .3s ease backwards}
 html:not(.lite) #swapView .stage.glow{box-shadow:0 0 0 3px color-mix(in srgb,var(--gc) 25%,transparent),0 0 50px -8px var(--gc)}
 html.lite #swapView *{transition:none!important;animation:none!important}
 @media(prefers-reduced-motion:reduce){#swapView *{transition:none!important;animation:none!important}}
-@media(max-width:820px){#swapView .grid{display:flex;flex-direction:column}#swchp{order:2}#swrw{order:3}#swpv{order:1;position:sticky;top:46px;z-index:5;background:var(--bg);padding:10px}#swapView .stage{max-width:min(100%,30vh)}#swapView .btn{min-height:42px}.sw-sub{display:none}}
+@media(max-width:820px){#swapView .grid{display:flex;flex-direction:column}#swchp{order:2}#swrw{order:3}#swpv{order:1;position:sticky;top:0;z-index:5;background:var(--bg);padding:10px}#swapView .stage{max-width:min(100%,30vh)}#swapView .btn{min-height:42px}.sw-sub{display:none}}

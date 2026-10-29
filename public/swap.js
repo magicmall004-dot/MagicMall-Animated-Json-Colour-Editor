@@ -79,7 +79,8 @@ function apply(){
  const gl=groups.filter(g=>g.tl).pop(),sg=$('#swstage');sg.classList.toggle('glow',!!gl);if(gl)sg.style.setProperty('--gc',gl.t);
  drawChips();clearTimeout(tmr);tmr=setTimeout(load,fxEff()==='full'?40:90)}
 function load(){
- const z=pako.gzip(JSON.stringify(data),{level:6}).length,sz=$('#swsize');sz.textContent='TGS '+(z/1024).toFixed(1)+' / 64 KB';sz.style.color=z>65536?'#ffb020':'';
+ if(typeof lottie==='undefined'){toast('Preview engine failed to load. Reload the page');return}
+ try{const z=pako.gzip(JSON.stringify(data),{level:6}).length,sz=$('#swsize');sz.textContent='TGS '+(z/1024).toFixed(1)+' / 64 KB';sz.style.color=z>65536?'#ffb020':''}catch(e){}
  const my=++seq,f=shown?shown.a.currentFrame:0,paused=shown?shown.a.isPaused:false;
  const el=document.createElement('div');el.className='swlot';$('#swstage').insertBefore(el,$('#swempty'));
  const n=lottie.loadAnimation({container:el,renderer:'svg',loop:true,autoplay:false,animationData:JSON.parse(JSON.stringify(data))});
