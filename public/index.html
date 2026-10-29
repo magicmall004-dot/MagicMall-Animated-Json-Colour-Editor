@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="mobile.css">
+  <link rel="stylesheet" href="swap.css">
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -66,6 +67,7 @@
       </button>
     </div>
   </header>
+  <nav class="view-switch" id="viewSwitch"><button class="vs-btn active" data-view="editor"><i class="ri-edit-2-line"></i> Editor</button><button class="vs-btn" data-view="swap"><i class="ri-palette-line"></i> Colour Swap</button></nav>
 
   <div id="browserWarning">
     <i class="ri-alert-line"></i>
@@ -236,6 +238,45 @@
       </div>
     </section>
   </main>
+  <section id="swapView" hidden><div class="sw-top"><button class="btn btn-primary" id="swopen"><i class="ri-folder-open-line"></i> Import JSON / TGS</button><span class="sw-sub">Pick a colour, type a new one. All its shades follow.</span></div><input type="file" id="swfile" accept=".json,.tgs,application/json" hidden><div class="grid">
+    <div class="panel sw-card" id="swpv">
+      <div class="stage bg-check" id="swstage">
+                <div class="empty" id="swempty"><b>Drop a .json or .tgs here</b>Colours are detected automatically.<br><button class="btn btn-primary" id="swopen2">Choose file</button></div>
+      </div>
+      <input type="range" id="swseek" min="0" max="100" value="0" disabled aria-label="Timeline">
+      <div class="bar">
+        <button class="btn btn-ghost" id="swplay" disabled>Pause</button>
+        <button class="btn btn-ghost" id="swcmp" disabled>Hold: original</button>
+        <div class="bgs" id="swbgs" title="Preview background">
+          <button class="on" data-bg="check" style="background:conic-gradient(#555 25%,#222 0 50%,#555 0 75%,#222 0) 0 0/10px 10px" aria-label="Checker background"></button>
+          <button data-bg="dark" style="background:#0c0e18" aria-label="Dark background"></button>
+          <button data-bg="light" style="background:#f3f1fa" aria-label="Light background"></button>
+        </div>
+        <span class="sp"></span>
+        <button class="btn btn-ghost" id="swundo" disabled aria-label="Undo">↶</button><button class="btn btn-ghost" id="swredo" disabled aria-label="Redo">↷</button><button class="btn btn-ghost" id="swreset" disabled>Reset all</button>
+      </div>
+    </div>
+    <div class="panel sw-card" id="swrw">
+      <h2>Your colours</h2>
+      <details class="tune" id="swtune"><summary>Tune everything</summary>
+       <label class="str">Hue<input type="range" id="swth" min="-180" max="180" value="0"><b>0°</b></label>
+       <label class="str">Saturation<input type="range" id="swts" min="0" max="200" value="100"><b>100%</b></label>
+       <label class="str">Lightness<input type="range" id="swtl" min="-30" max="30" value="0"><b>0</b></label>
+       <div class="bar"><select id="swsch" aria-label="Palette style"><option value="30,-30,0">Analogous</option><option value="0,180">Complementary</option><option value="0,120,240">Triad</option></select><button class="btn btn-primary" id="swmagic">✦ Surprise palette</button></div>
+      </details>
+      <div id="swrows"><div class="hint">Pick a colour on the right to start swapping.</div></div>
+      <div class="bar">
+        <button class="btn btn-ghost" id="swdlJson" disabled><i class="ri-send-plane-line"></i> Send JSON</button>
+        <button class="btn btn-primary" id="swdlTgs" disabled><i class="ri-send-plane-fill"></i> Send TGS to bot</button><span class="sp"></span><span class="sub" id="swsize"></span>
+      </div>
+    </div>
+  <div class="panel sw-card" id="swchp">
+    <h2>Colours in this animation</h2>
+    <div class="sub">Tap a group here, or tap a shape in the preview. Each group holds a colour and all its soft shades.</div>
+    <div class="chips" id="swchips"></div><div class="hint" id="swinfo"></div>
+  </div>
+</div>
+<div id="swtoast"></div></section>
 
   <!-- GRADIENT EDITOR MODAL -->
   <div id="gradient-editor-modal" class="modal-overlay" aria-hidden="true">
@@ -389,5 +430,6 @@
   <script src="ui.js"></script>
   <script src="picker.js"></script>
   <script src="extras.js"></script>
+  <script src="swap.js"></script>
 </body>
 </html>
