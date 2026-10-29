@@ -144,7 +144,7 @@ async function handle(msg) {
   const url = `${appUrl()}/?f=${encodeURIComponent(fileId)}&n=${encodeURIComponent(name)}`;
   return api('sendMessage', {
     chat_id: chat, reply_to_message_id: msg.message_id, ...C.msgOf(cfg, 'ready'),
-    reply_markup: { inline_keyboard: [[C.btn(cfg, 'btn_edit', { web_app: { url } })]] }
+    reply_markup: { inline_keyboard: [[C.btn(cfg, 'btn_edit', { web_app: { url } }), C.btn(cfg, 'btn_swap', { web_app: { url: url + '&t=swap' } })]] }
   });
 }
 

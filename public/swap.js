@@ -188,4 +188,5 @@ function gfxApply(g,save){gfx=g;const lite=g==='smooth';if(root.classList.contai
 $('#swgfx').onclick=e=>{const b=e.target.closest('[data-g]');if(b)gfxApply(b.dataset.g,true)};
 new MutationObserver(()=>{const l=root.classList.contains('lite');if(l&&gfx!=='smooth')gfxApply('smooth');else if(!l&&gfx==='smooth')gfxApply('high')}).observe(root,{attributes:true,attributeFilter:['class']});
 gfxApply(LS('mm_swgfx')||(root.classList.contains('lite')?'smooth':'high'));
+window.swapLoad=openFile;window.swapShow=()=>document.querySelector('#viewSwitch [data-view=swap]').click();
 })();

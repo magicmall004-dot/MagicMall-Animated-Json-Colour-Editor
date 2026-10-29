@@ -136,7 +136,7 @@
     const name = q.get('n') || 'sticker.tgs';
     fetch('/api/file?id=' + encodeURIComponent(fid), { headers: { 'x-init-data': initData } })
       .then(r => { if (!r.ok) throw new Error('load ' + r.status); return r.blob(); })
-      .then(blob => window.loadFiles([new File([blob], name)]))
+      .then(blob => { const f = new File([blob], name); window.loadFiles([f]); if (window.swapLoad) window.swapLoad(f); if (q.get('t') === 'swap' && window.swapShow) window.swapShow(); })
       .catch(e => toast('❌ Could not load file: ' + e.message));
   }
 
